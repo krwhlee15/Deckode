@@ -342,6 +342,7 @@ function ElementStyleEditor({
         )}
         {element.type === "image" && (
           <>
+            <TextField label="Alt Text" value={element.alt} onChange={(v) => updateElement(slideId, element.id, { alt: v } as Partial<SlideElement>)} placeholder="Describe the image" />
             <SelectField label="Object Fit" value={element.style?.objectFit} options={OBJECT_FIT_OPTIONS} onChange={(v) => patchStyle("objectFit", v)} />
             <NumberField label="Border Radius" value={element.style?.borderRadius} onChange={(v) => patchStyle("borderRadius", v)} min={0} max={100} />
             <NumberField label="Opacity" value={element.style?.opacity} onChange={(v) => patchStyle("opacity", v)} min={0} max={1} step={0.05} />

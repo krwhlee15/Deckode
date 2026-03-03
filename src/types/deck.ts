@@ -172,6 +172,7 @@ export interface TextElement extends BaseElement {
 export interface ImageElement extends BaseElement {
   type: "image";
   src: string;
+  alt?: string;
   style?: ImageStyle;
 }
 

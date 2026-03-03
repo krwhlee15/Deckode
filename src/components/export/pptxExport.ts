@@ -492,6 +492,7 @@ async function addImage(
     h,
     rotate,
     transparency: opacity < 1 ? Math.round((1 - opacity) * 100) : undefined,
+    altText: el.alt,
   });
 }
 

@@ -15,7 +15,7 @@ export function ImageElementRenderer({ element }: Props) {
   return (
     <img
       src={resolvedSrc}
-      alt=""
+      alt={element.alt ?? ""}
       style={{
         width: element.size.w,
         height: element.size.h,

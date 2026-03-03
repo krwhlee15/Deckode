@@ -228,6 +228,7 @@ Renders an image.
   "id": "e2",
   "type": "image",
   "src": "./assets/diagram.png",
+  "alt": "System architecture diagram showing client-server interaction",
   "position": { "x": 500, "y": 100 },
   "size": { "w": 400, "h": 300 },
   "style": {
@@ -241,6 +242,7 @@ Renders an image.
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `src` | string | yes | Image path relative to project root, or absolute URL |
+| `alt` | string | no | Alt text describing the image content. Helps AI agents understand what the image depicts beyond just the filename. Also used for accessibility and PPTX export. |
 
 **Style fields**:
 

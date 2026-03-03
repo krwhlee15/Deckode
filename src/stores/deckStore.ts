@@ -13,6 +13,10 @@ export function setStoreAdapter(adapter: FileSystemAdapter | null) {
   _adapter = adapter;
 }
 
+// Serialize disk writes: at most one in-flight, one queued.
+let _activeSave: Promise<void> | null = null;
+let _pendingSave = false;
+
 interface DeckState {
   currentProject: string | null;
   deck: Deck | null;
@@ -124,12 +128,32 @@ export const useDeckStore = create<DeckState>()(
           }),
 
         saveToDisk: async () => {
-          const { deck, isSaving, currentProject } = get();
-          if (!deck || isSaving || !currentProject || !_adapter) return;
+          const { deck, currentProject } = get();
+          if (!deck || !currentProject || !_adapter) return;
           if (_adapter.mode === "readonly") return;
+
+          // If a save is already in-flight, mark pending and let it chain.
+          if (_activeSave) {
+            _pendingSave = true;
+            return;
+          }
+
           set((state) => { state.isSaving = true; });
-          await _adapter.saveDeck(deck);
-          set((state) => { state.isSaving = false; state.isDirty = false; });
+          _activeSave = _adapter.saveDeck(get().deck!);
+          try {
+            await _activeSave;
+          } catch (err) {
+            console.error("[deckStore] saveToDisk failed:", err);
+          } finally {
+            _activeSave = null;
+            set((state) => { state.isSaving = false; state.isDirty = false; });
+          }
+
+          // A mutation happened while we were writing — save once more.
+          if (_pendingSave) {
+            _pendingSave = false;
+            return get().saveToDisk();
+          }
         },
 
         setCurrentSlide: (index) =>

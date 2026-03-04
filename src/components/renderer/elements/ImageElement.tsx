@@ -1,6 +1,14 @@
+import { lazy, Suspense } from "react";
 import type { ImageElement as ImageElementType, ImageStyle } from "@/types/deck";
 import { useElementStyle } from "@/contexts/ThemeContext";
 import { useAssetUrl } from "@/contexts/AdapterContext";
+
+const PdfRenderer = lazy(() => import("./PdfRenderer"));
+
+function isPdfSrc(src: string): boolean {
+  const path = src.split("?")[0]!;
+  return path.toLowerCase().endsWith(".pdf");
+}
 
 interface Props {
   element: ImageElementType;
@@ -11,6 +19,39 @@ export function ImageElementRenderer({ element }: Props) {
   const resolvedSrc = useAssetUrl(element.src);
 
   if (!resolvedSrc) return null;
+
+  if (isPdfSrc(element.src)) {
+    return (
+      <Suspense
+        fallback={
+          <div
+            style={{
+              width: element.size.w,
+              height: element.size.h,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              background: "#1a1a2e",
+              color: "#666",
+              fontSize: 14,
+              borderRadius: style.borderRadius ?? 0,
+              opacity: style.opacity ?? 1,
+            }}
+          >
+            Loading PDF...
+          </div>
+        }
+      >
+        <PdfRenderer
+          src={resolvedSrc}
+          width={element.size.w}
+          height={element.size.h}
+          borderRadius={style.borderRadius ?? 0}
+          opacity={style.opacity ?? 1}
+        />
+      </Suspense>
+    );
+  }
 
   return (
     <img

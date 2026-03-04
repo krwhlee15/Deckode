@@ -96,7 +96,7 @@ export function EditorCanvas() {
       }
 
       const file = Array.from(e.clipboardData?.files ?? []).find((f) =>
-        f.type.startsWith("image/"),
+        f.type.startsWith("image/") || f.type === "application/pdf",
       );
       if (!file) return;
 
@@ -113,13 +113,14 @@ export function EditorCanvas() {
       const slide = deck.slides[currentSlideIndex];
       assert(slide !== undefined, `Slide index ${currentSlideIndex} out of bounds`);
 
+      const isPdf = file.type === "application/pdf";
       const id = crypto.randomUUID();
       const element: ImageElement = {
         id,
         type: "image",
         src: url,
-        position: { x: 330, y: 170 },
-        size: { w: 300, h: 200 },
+        position: isPdf ? { x: 280, y: 120 } : { x: 330, y: 170 },
+        size: isPdf ? { w: 400, h: 300 } : { w: 300, h: 200 },
       };
       addElement(slide.id, element);
       selectElement(id);
@@ -229,7 +230,8 @@ export function EditorCanvas() {
     if (!file) return;
     const isImage = file.type.startsWith("image/");
     const isVideo = file.type.startsWith("video/");
-    if (!isImage && !isVideo) return;
+    const isPdf = file.type === "application/pdf";
+    if (!isImage && !isVideo && !isPdf) return;
 
     const url = await adapter.uploadAsset(file);
 
@@ -239,14 +241,14 @@ export function EditorCanvas() {
     const rawX = (e.clientX - rect.left) / scale;
     const rawY = (e.clientY - rect.top) / scale;
 
-    const elW = isImage ? 300 : 560;
-    const elH = isImage ? 200 : 315;
+    const elW = isPdf ? 400 : isImage ? 300 : 560;
+    const elH = isPdf ? 300 : isImage ? 200 : 315;
     const x = Math.max(0, Math.min(rawX - elW / 2, CANVAS_WIDTH - elW));
     const y = Math.max(0, Math.min(rawY - elH / 2, CANVAS_HEIGHT - elH));
 
     const id = crypto.randomUUID();
 
-    if (isImage) {
+    if (isImage || isPdf) {
       const element: ImageElement = {
         id,
         type: "image",

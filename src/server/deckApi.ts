@@ -21,6 +21,7 @@ const MIME_TYPES: Record<string, string> = {
   ".mp4": "video/mp4",
   ".webm": "video/webm",
   ".mov": "video/quicktime",
+  ".pdf": "application/pdf",
 };
 
 // -- Project-aware path helpers --
@@ -303,7 +304,7 @@ export function deckApiPlugin(): Plugin {
         const project = getProjectParam(req);
         const contentType = req.headers["content-type"] ?? "";
         assert(
-          contentType.startsWith("image/") || contentType.startsWith("video/"),
+          contentType.startsWith("image/") || contentType.startsWith("video/") || contentType === "application/pdf",
           `Unsupported content type: ${contentType}`,
         );
         const rawFilename = req.headers["x-filename"];

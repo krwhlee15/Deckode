@@ -33,6 +33,7 @@
     "shiki": "^3.22.0",
     "three": "^0.183.2",
     "zundo": "^2.3.0",
+    "pdfjs-dist": "^5.4.624",
     "zustand": "^5.0.3"
   },
   "devDependencies": {
@@ -50,7 +51,6 @@
     "eslint-plugin-react-refresh": "^0.4.20",
     "globals": "^16.0.0",
     "pdf-parse": "^2.4.5",
-    "pdfjs-dist": "^5.4.624",
     "tailwindcss": "^4.1.3",
     "typescript": "~5.7.2",
     "typescript-eslint": "^8.26.1",

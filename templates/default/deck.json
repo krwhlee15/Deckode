@@ -543,8 +543,8 @@
           "id": "arrow-down",
           "type": "shape",
           "shape": "arrow",
-          "position": { "x": 390, "y": 200 },
-          "size": { "w": 100, "h": 20 },
+          "position": { "x": 355, "y": 245 },
+          "size": { "w": 110, "h": 20 },
           "rotation": 90,
           "style": { "stroke": "#64748b", "strokeWidth": 2 }
         },

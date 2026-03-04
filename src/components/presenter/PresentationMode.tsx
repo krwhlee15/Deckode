@@ -303,13 +303,13 @@ export function PresentationMode({ onExit }: PresentationModeProps) {
       } else if (e.key === "ArrowLeft") {
         e.preventDefault();
         goBack();
-      } else if (e.key === "p" || e.key === "P") {
+      } else if (e.code === "KeyP") {
         setViewMode((m) => (m === "presenter" ? "audience" : "presenter"));
-      } else if (e.key === "w" || e.key === "W") {
+      } else if (e.code === "KeyW") {
         openAudienceWindow();
-      } else if (e.key === "l" || e.key === "L") {
+      } else if (e.code === "KeyL") {
         setPointerActive((p) => !p);
-      } else if (e.key === "f" || e.key === "F") {
+      } else if (e.code === "KeyF") {
         if (document.fullscreenElement) {
           document.exitFullscreen();
         } else {

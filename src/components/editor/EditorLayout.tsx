@@ -136,7 +136,7 @@ export function EditorLayout() {
       const tag = (e.target as HTMLElement).tagName;
       const isInput = tag === "INPUT" || tag === "TEXTAREA";
 
-      if ((e.ctrlKey || e.metaKey) && e.key === "s") {
+      if ((e.ctrlKey || e.metaKey) && e.code === "KeyS") {
         e.preventDefault();
         handleSave();
         return;
@@ -151,19 +151,19 @@ export function EditorLayout() {
       if (isInput) return;
 
       // Undo: Ctrl+Z
-      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === "z") {
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.code === "KeyZ") {
         e.preventDefault();
         performUndoRedo("undo");
         return;
       }
       // Redo: Ctrl+Shift+Z or Ctrl+Y
-      if ((e.ctrlKey || e.metaKey) && (e.shiftKey && e.key === "Z" || e.key === "y")) {
+      if ((e.ctrlKey || e.metaKey) && (e.shiftKey && e.code === "KeyZ" || e.code === "KeyY")) {
         e.preventDefault();
         performUndoRedo("redo");
         return;
       }
       // Group: Ctrl+G (merges into one flat group, replaces existing groups)
-      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === "g") {
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.code === "KeyG") {
         e.preventDefault();
         const { deck, currentSlideIndex, selectedElementIds, groupElements } = useDeckStore.getState();
         if (deck && selectedElementIds.length >= 2) {
@@ -183,7 +183,7 @@ export function EditorLayout() {
         return;
       }
       // Ungroup: Ctrl+Shift+G
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === "G") {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.code === "KeyG") {
         e.preventDefault();
         const { deck, currentSlideIndex, selectedElementIds, ungroupElements } = useDeckStore.getState();
         if (deck && selectedElementIds.length > 0) {
@@ -202,7 +202,7 @@ export function EditorLayout() {
         return;
       }
       // Duplicate element(s): Ctrl+D
-      if ((e.ctrlKey || e.metaKey) && e.key === "d") {
+      if ((e.ctrlKey || e.metaKey) && e.code === "KeyD") {
         e.preventDefault();
         const { deck, currentSlideIndex, selectedElementIds, duplicateElement, selectElement } = useDeckStore.getState();
         if (deck && selectedElementIds.length > 0) {

@@ -136,7 +136,7 @@ export function PresenterView() {
         } else {
           window.close();
         }
-      } else if (e.key === "f" || e.key === "F") {
+      } else if (e.code === "KeyF") {
         if (document.fullscreenElement) {
           document.exitFullscreen();
         } else {

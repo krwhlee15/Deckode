@@ -10,6 +10,7 @@ export class ReadOnlyAdapter implements FileSystemAdapter {
 
   private deck: Deck;
   private assetBaseUrl: string;
+  private assetMap?: Record<string, string>;
 
   constructor(projectName: string, deck: Deck, assetBaseUrl: string) {
     this.projectName = projectName;
@@ -42,6 +43,7 @@ export class ReadOnlyAdapter implements FileSystemAdapter {
   }
 
   resolveAssetUrl(path: string): string {
+    if (this.assetMap?.[path]) return this.assetMap[path]!;
     if (path.startsWith("./assets/")) {
       return `${this.assetBaseUrl}/${path.slice(9)}`;
     }
@@ -74,5 +76,16 @@ export class ReadOnlyAdapter implements FileSystemAdapter {
 
   static fromRemote(name: string, deck: Deck, assetBaseUrl: string): ReadOnlyAdapter {
     return new ReadOnlyAdapter(name, deck, assetBaseUrl);
+  }
+
+  /** Create adapter for pop-out windows using pre-resolved asset URLs (e.g. blob URLs). */
+  static fromAssetMap(
+    projectName: string,
+    deck: Deck,
+    assetMap: Record<string, string>,
+  ): ReadOnlyAdapter {
+    const adapter = new ReadOnlyAdapter(projectName, deck, "");
+    adapter.assetMap = assetMap;
+    return adapter;
   }
 }

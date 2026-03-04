@@ -2,10 +2,12 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useDeckStore } from "@/stores/deckStore";
 import { SlideRenderer } from "@/components/renderer/SlideRenderer";
 import { usePresentationChannel } from "@/hooks/usePresentationChannel";
+import { useAdapter } from "@/contexts/AdapterContext";
 import { computeSteps } from "@/utils/animationSteps";
 import type { AnimationStep } from "@/utils/animationSteps";
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from "@/types/deck";
 import type { Deck, Slide, SlideTransition, DeckTheme } from "@/types/deck";
+import type { FsAccessAdapter } from "@/adapters/fsAccess";
 import { AnimatePresence, motion } from "framer-motion";
 
 function useVisibleSlides(deck: Deck | null) {
@@ -71,6 +73,7 @@ export function PresentationMode({ onExit }: PresentationModeProps) {
   const deck = useDeckStore((s) => s.deck);
   const currentSlideIndex = useDeckStore((s) => s.currentSlideIndex);
   const setCurrentSlide = useDeckStore((s) => s.setCurrentSlide);
+  const adapter = useAdapter();
 
   const [viewMode, setViewMode] = useState<ViewMode>("presenter");
   const [activeStep, setActiveStep] = useState(0);
@@ -179,24 +182,37 @@ export function PresentationMode({ onExit }: PresentationModeProps) {
 
   const skipNextBroadcast = useRef(false);
 
-  const { postNavigate, postExit, postPointer } = usePresentationChannel({
-    onNavigate: (slideIndex, step) => {
-      skipNextBroadcast.current = true;
-      skipStepResetRef.current = true;
-      setCurrentSlide(slideIndex);
-      setActiveStep(step);
-    },
-    onExit: () => {
-      audienceWindowRef.current = null;
-      onExit();
-    },
-    onSyncRequest: () => {
-      postNavigate(
-        useDeckStore.getState().currentSlideIndex,
-        activeStepRef.current,
-      );
-    },
-  });
+  const { postNavigate, postExit, postPointer, postSyncDeck } =
+    usePresentationChannel({
+      onNavigate: (slideIndex, step) => {
+        skipNextBroadcast.current = true;
+        skipStepResetRef.current = true;
+        setCurrentSlide(slideIndex);
+        setActiveStep(step);
+      },
+      onExit: () => {
+        audienceWindowRef.current = null;
+        onExit();
+      },
+      onSyncRequest: () => {
+        const state = useDeckStore.getState();
+        if (state.deck && state.currentProject) {
+          const assetMap: Record<string, string> = {};
+          if (adapter.mode === "fs-access") {
+            for (const [k, v] of (adapter as FsAccessAdapter).blobUrlCache) {
+              assetMap[k] = v;
+            }
+          }
+          postSyncDeck(
+            state.deck,
+            state.currentProject,
+            state.currentSlideIndex,
+            activeStepRef.current,
+            assetMap,
+          );
+        }
+      },
+    });
 
   // Broadcast navigation changes
   const prevSlideIndex = useRef(currentSlideIndex);

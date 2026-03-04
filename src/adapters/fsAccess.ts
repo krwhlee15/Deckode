@@ -29,7 +29,11 @@ const BUNDLED_LAYOUTS: Record<string, unknown> = {
 export class FsAccessAdapter implements FileSystemAdapter {
   readonly mode = "fs-access" as const;
   readonly dirHandle: FileSystemDirectoryHandle;
-  private blobUrlCache = new Map<string, string>();
+  private blobUrlCache_ = new Map<string, string>();
+  /** Expose cached blob URLs for cross-window sharing (e.g. pop-out audience view). */
+  get blobUrlCache(): ReadonlyMap<string, string> {
+    return this.blobUrlCache_;
+  }
   readonly projectName: string;
   private _lastSaveTs = 0;
 
@@ -218,13 +222,13 @@ export class FsAccessAdapter implements FileSystemAdapter {
     // Pre-cache the blob URL
     const blob = new Blob([file], { type: file.type });
     const blobUrl = URL.createObjectURL(blob);
-    this.blobUrlCache.set(storedPath, blobUrl);
+    this.blobUrlCache_.set(storedPath, blobUrl);
 
     return storedPath;
   }
 
   async resolveAssetUrl(path: string): Promise<string> {
-    const cached = this.blobUrlCache.get(path);
+    const cached = this.blobUrlCache_.get(path);
     if (cached) return cached;
 
     // Strip query string (dev server adds ?v=timestamp as cache-buster)
@@ -271,7 +275,7 @@ export class FsAccessAdapter implements FileSystemAdapter {
     }
     const file = await fileHandle.getFile();
     const blobUrl = URL.createObjectURL(file);
-    this.blobUrlCache.set(path, blobUrl);
+    this.blobUrlCache_.set(path, blobUrl);
     return blobUrl;
   }
 
@@ -347,7 +351,7 @@ export class FsAccessAdapter implements FileSystemAdapter {
     const storedPath = `${basePath}?v=${Date.now()}`;
     const blob = new Blob([svgMarkup], { type: "image/svg+xml" });
     const blobUrl = URL.createObjectURL(blob);
-    this.blobUrlCache.set(storedPath, blobUrl);
+    this.blobUrlCache_.set(storedPath, blobUrl);
 
     return { ok: true, svgUrl: storedPath };
   }

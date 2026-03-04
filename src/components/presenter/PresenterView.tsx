@@ -2,9 +2,12 @@ import { useState, useEffect, useMemo } from "react";
 import { useDeckStore } from "@/stores/deckStore";
 import { SlideRenderer } from "@/components/renderer/SlideRenderer";
 import { usePresentationChannel } from "@/hooks/usePresentationChannel";
+import { AdapterProvider } from "@/contexts/AdapterContext";
+import { ReadOnlyAdapter } from "@/adapters/readOnly";
 import { computeSteps } from "@/utils/animationSteps";
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from "@/types/deck";
 import type { SlideTransition } from "@/types/deck";
+import type { FileSystemAdapter } from "@/adapters/types";
 import { AnimatePresence, motion } from "framer-motion";
 
 const transitionVariants = {
@@ -32,6 +35,9 @@ export function PresenterView() {
   const setCurrentSlide = useDeckStore((s) => s.setCurrentSlide);
 
   const [activeStep, setActiveStep] = useState(0);
+  const [popoutAdapter, setPopoutAdapter] = useState<FileSystemAdapter | null>(
+    null,
+  );
   const [pointer, setPointer] = useState<{
     x: number;
     y: number;
@@ -61,9 +67,22 @@ export function PresenterView() {
     return () => window.removeEventListener("resize", update);
   }, []);
 
-  // BroadcastChannel: receive navigation + pointer from presenter
+  // BroadcastChannel: receive navigation + pointer + deck sync from presenter
   const { postSyncRequest } = usePresentationChannel({
     onNavigate: (slideIndex, step) => {
+      setCurrentSlide(slideIndex);
+      setActiveStep(step);
+    },
+    onSyncDeck: (syncDeck, project, slideIndex, step, assetMap) => {
+      const state = useDeckStore.getState();
+      if (!state.currentProject) {
+        state.openProject(project, syncDeck);
+      }
+      if (Object.keys(assetMap).length > 0) {
+        setPopoutAdapter(
+          ReadOnlyAdapter.fromAssetMap(project, syncDeck, assetMap),
+        );
+      }
       setCurrentSlide(slideIndex);
       setActiveStep(step);
     },
@@ -117,7 +136,7 @@ export function PresenterView() {
   const variant =
     transitionVariants[transition.type] ?? transitionVariants.fade;
 
-  return (
+  const content = (
     <div className="h-screen w-screen bg-black flex items-center justify-center relative">
       <div className="relative">
         <AnimatePresence mode="wait">
@@ -162,4 +181,10 @@ export function PresenterView() {
       )}
     </div>
   );
+
+  // Wrap with AdapterProvider when we have a popout adapter (for asset resolution)
+  if (popoutAdapter) {
+    return <AdapterProvider adapter={popoutAdapter}>{content}</AdapterProvider>;
+  }
+  return content;
 }

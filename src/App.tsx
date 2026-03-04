@@ -256,6 +256,12 @@ export function App() {
     );
   }
 
+  // Audience popup without a loaded project: render directly.
+  // Deck data arrives via BroadcastChannel sync from the presenter window.
+  if (isAudiencePopup && !currentProject) {
+    return <PresenterView />;
+  }
+
   if (!currentProject) {
     return (
       <ProjectSelector

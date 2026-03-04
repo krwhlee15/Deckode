@@ -1,15 +1,31 @@
 import { useEffect, useRef } from "react";
+import type { Deck } from "@/types/deck";
 
 export type PresentMessage =
   | { type: "navigate"; slideIndex: number; activeStep: number }
   | { type: "exit" }
   | { type: "sync-request" }
+  | {
+      type: "sync-deck";
+      deck: Deck;
+      project: string;
+      slideIndex: number;
+      activeStep: number;
+      assetMap: Record<string, string>;
+    }
   | { type: "pointer"; x: number; y: number; visible: boolean };
 
 interface Callbacks {
   onNavigate?: (slideIndex: number, activeStep: number) => void;
   onExit?: () => void;
   onSyncRequest?: () => void;
+  onSyncDeck?: (
+    deck: Deck,
+    project: string,
+    slideIndex: number,
+    activeStep: number,
+    assetMap: Record<string, string>,
+  ) => void;
   onPointer?: (x: number, y: number, visible: boolean) => void;
 }
 
@@ -31,6 +47,14 @@ export function usePresentationChannel(callbacks: Callbacks) {
         cbRef.current.onExit?.();
       } else if (msg.type === "sync-request") {
         cbRef.current.onSyncRequest?.();
+      } else if (msg.type === "sync-deck") {
+        cbRef.current.onSyncDeck?.(
+          msg.deck,
+          msg.project,
+          msg.slideIndex,
+          msg.activeStep,
+          msg.assetMap,
+        );
       } else if (msg.type === "pointer") {
         cbRef.current.onPointer?.(msg.x, msg.y, msg.visible);
       }
@@ -60,6 +84,23 @@ export function usePresentationChannel(callbacks: Callbacks) {
     } satisfies PresentMessage);
   };
 
+  const postSyncDeck = (
+    deck: Deck,
+    project: string,
+    slideIndex: number,
+    activeStep: number,
+    assetMap: Record<string, string>,
+  ) => {
+    channelRef.current?.postMessage({
+      type: "sync-deck",
+      deck,
+      project,
+      slideIndex,
+      activeStep,
+      assetMap,
+    } satisfies PresentMessage);
+  };
+
   const postPointer = (x: number, y: number, visible: boolean) => {
     channelRef.current?.postMessage({
       type: "pointer",
@@ -69,5 +110,5 @@ export function usePresentationChannel(callbacks: Callbacks) {
     } satisfies PresentMessage);
   };
 
-  return { postNavigate, postExit, postSyncRequest, postPointer };
+  return { postNavigate, postExit, postSyncRequest, postSyncDeck, postPointer };
 }

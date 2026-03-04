@@ -742,7 +742,7 @@
           },
           "style": {
             "fontSize": 16,
-            "color": "#1e293b",
+            "color": "#e2e8f0",
             "lineHeight": 1.4
           }
         },
@@ -760,7 +760,7 @@
           },
           "style": {
             "fontSize": 16,
-            "color": "#1e293b",
+            "color": "#e2e8f0",
             "lineHeight": 1.4
           }
         },
@@ -778,7 +778,7 @@
           },
           "style": {
             "fontSize": 16,
-            "color": "#1e293b",
+            "color": "#e2e8f0",
             "lineHeight": 1.4
           }
         }
@@ -1341,7 +1341,7 @@
           },
           "style": {
             "fontSize": 22,
-            "color": "#fbbf24"
+            "color": "#92400e"
           }
         },
         {
@@ -2333,7 +2333,7 @@
           },
           "style": {
             "fontSize": 36,
-            "color": "#0f172a"
+            "color": "#e2e8f0"
           }
         },
         {
@@ -2384,7 +2384,7 @@
           },
           "style": {
             "fontSize": 15,
-            "color": "#475569",
+            "color": "#94a3b8",
             "lineHeight": 1.7
           }
         },
@@ -2419,7 +2419,7 @@
           },
           "style": {
             "fontSize": 15,
-            "color": "#475569",
+            "color": "#94a3b8",
             "lineHeight": 1.7
           }
         },

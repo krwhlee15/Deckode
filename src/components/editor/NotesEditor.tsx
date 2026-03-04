@@ -1,8 +1,11 @@
 import { useState } from "react";
 import { useDeckStore } from "@/stores/deckStore";
 
+// Persist expand state across remounts (e.g. presentation mode)
+let _notesExpanded = false;
+
 export function NotesEditor() {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(_notesExpanded);
   const deck = useDeckStore((s) => s.deck);
   const currentSlideIndex = useDeckStore((s) => s.currentSlideIndex);
   const updateSlide = useDeckStore((s) => s.updateSlide);
@@ -11,15 +14,25 @@ export function NotesEditor() {
   const slide = deck.slides[currentSlideIndex];
   if (!slide) return null;
 
+  const toggleExpanded = () => {
+    const next = !expanded;
+    setExpanded(next);
+    _notesExpanded = next;
+  };
+
   return (
     <div className="border-t border-zinc-800 shrink-0">
       <button
-        onClick={() => setExpanded(!expanded)}
+        onClick={toggleExpanded}
         className="w-full flex items-center gap-1.5 px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200 transition-colors"
       >
-        <span className={`transition-transform ${expanded ? "rotate-90" : ""}`}>
-          ▶
-        </span>
+        <svg
+          className={`w-2.5 h-2.5 transition-transform ${expanded ? "rotate-90" : ""}`}
+          viewBox="0 0 6 10"
+          fill="currentColor"
+        >
+          <path d="M0 0l6 5-6 5z" />
+        </svg>
         Notes
       </button>
       {expanded && (

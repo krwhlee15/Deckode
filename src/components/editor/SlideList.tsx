@@ -155,7 +155,6 @@ export function SlideList() {
               scale={thumbScale}
               isCurrent={index === currentSlideIndex}
               isSelected={selectedSlideIds.includes(slide.id)}
-              canDelete={deck.slides.length > 1}
               onSelect={(e: React.MouseEvent) => {
                 if (e.ctrlKey || e.metaKey) {
                   // Toggle in/out of selection
@@ -175,7 +174,6 @@ export function SlideList() {
                   setCurrentSlide(index);
                 }
               }}
-              onDelete={() => handleDeleteSlide(slide.id, index)}
               onContextMenu={(x, y) => setContextMenu({ x, y, slideId: slide.id, slideIndex: index })}
               theme={deck.theme}
             />
@@ -247,9 +245,7 @@ function SortableSlideItem({
   scale,
   isCurrent,
   isSelected,
-  canDelete,
   onSelect,
-  onDelete,
   onContextMenu,
   theme,
 }: {
@@ -258,9 +254,7 @@ function SortableSlideItem({
   scale: number;
   isCurrent: boolean;
   isSelected: boolean;
-  canDelete: boolean;
   onSelect: (e: React.MouseEvent) => void;
-  onDelete: () => void;
   onContextMenu: (x: number, y: number) => void;
   theme?: DeckTheme;
 }) {
@@ -306,15 +300,7 @@ function SortableSlideItem({
         </span>
       </button>
 
-      {canDelete && (
-        <button
-          onClick={(e) => { e.stopPropagation(); onDelete(); }}
-          className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-red-600 text-white text-[9px] leading-none flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-          title="Delete slide"
-        >
-          ×
-        </button>
-      )}
+      {/* Delete via right-click context menu only */}
     </div>
   );
 }

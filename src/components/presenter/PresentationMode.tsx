@@ -308,6 +308,12 @@ export function PresentationMode({ onExit }: PresentationModeProps) {
         openAudienceWindow();
       } else if (e.key === "l" || e.key === "L") {
         setPointerActive((p) => !p);
+      } else if (e.key === "f" || e.key === "F") {
+        if (document.fullscreenElement) {
+          document.exitFullscreen();
+        } else {
+          document.documentElement.requestFullscreen?.();
+        }
       } else {
         const currentStep = stepsRef.current[activeStepRef.current];
         if (currentStep?.trigger === "onKey" && currentStep.key === e.key) {
@@ -680,7 +686,7 @@ function PresenterConsole({
             Pop Out
           </button>
           <span className="text-[10px] text-zinc-600 ml-2">
-            P view / W pop out / L pointer / Esc exit
+            P view / W pop out / L pointer / F fullscreen / Esc exit
           </span>
         </div>
 

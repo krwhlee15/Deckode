@@ -949,7 +949,7 @@
             "w": 280,
             "h": 250
           },
-          "svgUrl": "./assets/tikz/tikz-demo-1.svg"
+          "svgUrl": "./assets/tikz/tikz-geo.svg"
         },
         {
           "id": "tikz-plot",
@@ -963,7 +963,7 @@
             "w": 280,
             "h": 250
           },
-          "svgUrl": "./assets/tikz/tikz-demo-2.svg"
+          "svgUrl": "./assets/tikz/tikz-plot.svg"
         },
         {
           "id": "tikz-flow",
@@ -977,7 +977,7 @@
             "w": 280,
             "h": 250
           },
-          "svgUrl": "./assets/tikz/tikz-demo-3.svg"
+          "svgUrl": "./assets/tikz/tikz-flow.svg"
         },
         {
           "id": "tikz-hint",

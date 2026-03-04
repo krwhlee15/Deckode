@@ -18,8 +18,8 @@ import { assert } from "@/utils/assert";
 const IS_DEV = import.meta.env.DEV;
 
 // Eagerly bundle external slide files for the ?demo mode
-const exampleSlideFiles: Record<string, unknown> = import.meta.glob(
-  "../projects/example/slides/*.json",
+const demoSlideFiles: Record<string, unknown> = import.meta.glob(
+  "../templates/default/slides/*.json",
   { eager: true, import: "default" },
 );
 
@@ -69,12 +69,12 @@ export function App() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
 
-    // ?demo → load bundled example deck
+    // ?demo → load bundled template deck
     if (params.has("demo")) {
       setLoading(true);
-      import("../projects/example/deck.json").then((mod) => {
+      import("../templates/default/deck.json").then((mod) => {
         const rawDeck = mod.default as unknown as Deck;
-        const deck = resolveSlideRefsFromMap(rawDeck, "../projects/example/", exampleSlideFiles);
+        const deck = resolveSlideRefsFromMap(rawDeck, "../templates/default/", demoSlideFiles);
         const assetBaseUrl = import.meta.env.BASE_URL + "demo-assets";
         const readOnlyAdapter = ReadOnlyAdapter.fromBundled(deck, assetBaseUrl);
         openReadOnly(readOnlyAdapter);

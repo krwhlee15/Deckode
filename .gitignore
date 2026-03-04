@@ -5,8 +5,7 @@ dist
 *.tsbuildinfo
 
 # Runtime data (auto-saved by editor)
-projects/*
-!projects/example/
+projects/
 
 # TikZJax WASM assets (copied from node_modules by postinstall)
 public/tikzjax/

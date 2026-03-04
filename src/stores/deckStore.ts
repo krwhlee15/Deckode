@@ -221,10 +221,20 @@ export const useDeckStore = create<DeckState>()(
         groupElements: (slideId, elementIds) =>
           set((state) => {
             assert(state.deck !== null, "No deck loaded");
-            assert(elementIds.length >= 2, "Need at least 2 elements to group");
             const slide = getSlide(state.deck.slides, slideId);
-            const groupId = `group-${crypto.randomUUID().slice(0, 8)}`;
+            // Expand to include all members of any partially-selected group
+            const expandedIds = new Set(elementIds);
             for (const elId of elementIds) {
+              const el = slide.elements.find((e) => e.id === elId);
+              if (el?.groupId) {
+                for (const member of slide.elements) {
+                  if (member.groupId === el.groupId) expandedIds.add(member.id);
+                }
+              }
+            }
+            assert(expandedIds.size >= 2, "Need at least 2 elements to group");
+            const groupId = `group-${crypto.randomUUID().slice(0, 8)}`;
+            for (const elId of expandedIds) {
               const el = slide.elements.find((e) => e.id === elId);
               if (el) el.groupId = groupId;
             }

@@ -66,7 +66,16 @@ export function SelectionOverlay({ slide, scale }: Props) {
   const handleSelect = useCallback(
     (element: SlideElement, e: React.MouseEvent) => {
       if (e.shiftKey) {
-        selectElement(element.id, "add");
+        if (element.groupId) {
+          // Add all group members
+          const groupMembers = slide.elements
+            .filter((el) => el.groupId === element.groupId)
+            .map((el) => el.id);
+          const merged = [...new Set([...selectedElementIds, ...groupMembers])];
+          selectElements(merged);
+        } else {
+          selectElement(element.id, "add");
+        }
       } else if (e.ctrlKey || e.metaKey) {
         selectElement(element.id, "toggle");
       } else if (element.groupId) {
@@ -192,6 +201,7 @@ function InteractiveElement({ element, isSelected, showResizeHandles, isHighligh
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
+      if (e.button !== 0) return; // Only left-click initiates drag
       e.preventDefault();
       e.stopPropagation();
       onSelect(e);

@@ -32,23 +32,27 @@ interface Props {
   previewMode?: boolean;
   /** Incrementing counter to force AnimatedWrapper remount for replay */
   previewKey?: number;
+  /** Skip absolute positioning — parent handles position (e.g. MorphTransition) */
+  noPosition?: boolean;
 }
 
-export function ElementRenderer({ element, animations, activeAnimations, delayOverrides, thumbnail, previewMode, previewKey }: Props) {
-  const positionStyle = getElementPositionStyle(element);
+export function ElementRenderer({ element, animations, activeAnimations, delayOverrides, thumbnail, previewMode, previewKey, noPosition }: Props) {
+  const positionStyle = noPosition
+    ? { width: "100%" as const, height: "100%" as const }
+    : getElementPositionStyle(element);
   const child = renderByType(element, thumbnail, animations, activeAnimations);
 
   // No animations → plain div (zero overhead in editor)
   if (!animations || animations.length === 0) {
     return (
-      <div data-element-id={element.id} className="absolute" style={positionStyle}>
+      <div data-element-id={element.id} className={noPosition ? undefined : "absolute"} style={positionStyle}>
         {child}
       </div>
     );
   }
 
   return (
-    <div data-element-id={element.id} className="absolute" style={positionStyle}>
+    <div data-element-id={element.id} className={noPosition ? undefined : "absolute"} style={positionStyle}>
       <AnimatedWrapper
         key={previewKey}
         animations={animations}

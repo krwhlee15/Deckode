@@ -49,7 +49,6 @@ export function PresenterView() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showControls, setShowControls] = useState(true);
   const hideTimerRef = useRef(0);
-
   const slide = deck?.slides[currentSlideIndex];
   const steps = useMemo(
     () => computeSteps(slide?.animations ?? []),

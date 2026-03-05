@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef, useMemo } from "react";
-import { motion, LayoutGroup, AnimatePresence } from "framer-motion";
-import type { Slide, DeckTheme } from "@/types/deck";
+import { motion, AnimatePresence } from "framer-motion";
+import type { Slide, DeckTheme, Animation } from "@/types/deck";
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from "@/types/deck";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { useAssetUrl } from "@/contexts/AdapterContext";
+import { useDeckStore } from "@/stores/deckStore";
 import { ElementRenderer } from "./ElementRenderer";
-import type { Animation } from "@/types/deck";
 import type { AnimationStep } from "@/utils/animationSteps";
 
 interface MorphTransitionProps {
@@ -18,6 +18,21 @@ interface MorphTransitionProps {
   onAdvance?: () => void;
 }
 
+interface MorphState {
+  oldSlide: Slide;
+}
+
+/**
+ * Look up the slide that appears before `slide` in the deck.
+ * Used as the morph "from" state on initial mount.
+ */
+function getAdjacentPrevSlide(slide: Slide): Slide | null {
+  const deck = useDeckStore.getState().deck;
+  if (!deck) return null;
+  const idx = deck.slides.findIndex((s) => s.id === slide.id);
+  return idx > 0 ? deck.slides[idx - 1]! : null;
+}
+
 export function MorphTransition({
   slide,
   scale,
@@ -27,47 +42,29 @@ export function MorphTransition({
   steps,
   onAdvance,
 }: MorphTransitionProps) {
-  const [prevSlide, setPrevSlide] = useState<Slide | null>(null);
-  const [morphing, setMorphing] = useState(false);
+  const targetSlideRef = useRef<Slide>(slide);
   const prevSlideIdRef = useRef(slide.id);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
-    if (slide.id !== prevSlideIdRef.current) {
-      // Slide changed — start morph
-      setPrevSlide(prevSlideDataRef.current);
-      setMorphing(true);
-      prevSlideIdRef.current = slide.id;
-
-      // End morph after duration
-      if (timerRef.current) clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(() => {
-        setPrevSlide(null);
-        setMorphing(false);
-      }, duration);
-    }
-  }, [slide.id, duration]);
-
-  // Store previous slide data for when we need it
-  const prevSlideDataRef = useRef<Slide>(slide);
-  useEffect(() => {
-    // After morph is done, update the ref
-    if (!morphing) {
-      prevSlideDataRef.current = slide;
-    }
+  // On mount: morph from the adjacent previous slide in the deck
+  const [morph, setMorph] = useState<MorphState | null>(() => {
+    const prev = getAdjacentPrevSlide(slide);
+    return prev ? { oldSlide: prev } : null;
   });
-  // Always update if slide data changes (in-place edits)
-  if (!morphing) {
-    prevSlideDataRef.current = slide;
+
+  // Subsequent slide changes (when MorphTransition stays mounted)
+  if (slide.id !== prevSlideIdRef.current) {
+    setMorph({ oldSlide: targetSlideRef.current });
+    prevSlideIdRef.current = slide.id;
   }
+  targetSlideRef.current = slide;
 
+  // Schedule morph end
   useEffect(() => {
-    return () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-    };
-  }, []);
+    if (!morph) return;
+    const timer = setTimeout(() => setMorph(null), duration);
+    return () => clearTimeout(timer);
+  }, [morph, duration]);
 
-  // Build animation maps for the current slide
   const animationMap = useMemo(() => {
     const anims = slide.animations;
     if (!anims || anims.length === 0) return null;
@@ -97,31 +94,24 @@ export function MorphTransition({
     return { activeAnimations: set, delayOverrides: delays };
   }, [activeStep, steps]);
 
-  // Compute element sets
-  const newElementIds = new Set(slide.elements.map((e) => e.id));
-  const oldElementIds = prevSlide ? new Set(prevSlide.elements.map((e) => e.id)) : new Set<string>();
+  const oldElementMap = useMemo(() => {
+    if (!morph) return new Map<string, Slide["elements"][number]>();
+    return new Map(morph.oldSlide.elements.map((e) => [e.id, e]));
+  }, [morph]);
 
-  // Elements that exist in both slides (shared — will morph)
-  const sharedIds = new Set([...newElementIds].filter((id) => oldElementIds.has(id)));
-  // Elements only in old slide (will fade out)
-  const removedElements = prevSlide
-    ? prevSlide.elements.filter((e) => !newElementIds.has(e.id))
-    : [];
-  // Elements only in new slide (will fade in)
-  const addedElements = slide.elements.filter((e) => !oldElementIds.has(e.id));
-  // Elements in both slides — render from new slide's data
-  const sharedElements = slide.elements.filter((e) => sharedIds.has(e.id));
+  const removedElements = useMemo(() => {
+    if (!morph) return [];
+    const newIds = new Set(slide.elements.map((e) => e.id));
+    return morph.oldSlide.elements.filter((e) => !newIds.has(e.id));
+  }, [morph, slide.elements]);
 
+  const morphActive = morph !== null;
   const durationSec = duration / 1000;
 
   const bg = slide.background;
   const themeBgColor = theme?.slide?.background?.color;
   const resolvedBgImage = useAssetUrl(bg?.image);
-
-  // Previous slide background for interpolation
-  const prevBg = prevSlide?.background;
-  const prevBgColor = prevBg?.color ?? themeBgColor ?? "#ffffff";
-  const newBgColor = bg?.color ?? themeBgColor ?? "#ffffff";
+  const bgColor = bg?.color ?? themeBgColor ?? "#ffffff";
 
   const content = (
     <div
@@ -132,49 +122,104 @@ export function MorphTransition({
         position: "relative",
       }}
     >
-      <LayoutGroup>
-        <motion.div
-          onClick={onAdvance}
-          animate={{ backgroundColor: newBgColor }}
-          transition={{ duration: durationSec }}
-          style={{
-            width: CANVAS_WIDTH,
-            height: CANVAS_HEIGHT,
-            transform: `scale(${scale})`,
-            transformOrigin: "top left",
-            backgroundColor: morphing ? prevBgColor : newBgColor,
-            backgroundImage: resolvedBgImage ? `url(${resolvedBgImage})` : undefined,
-            backgroundSize: "cover",
-            backgroundPosition: "center",
-            position: "absolute",
-            top: 0,
-            left: 0,
-            cursor: onAdvance ? "default" : undefined,
-          }}
-        >
-          {/* Shared elements — morph via layoutId */}
-          {sharedElements.map((element) => (
-            <MorphElement
-              key={element.id}
-              layoutId={element.id}
-              element={element}
-              duration={durationSec}
-              animations={animationMap?.get(element.id)}
-              activeAnimations={activeAnimations}
-              delayOverrides={delayOverrides}
-            />
-          ))}
+      <motion.div
+        onClick={onAdvance}
+        animate={{ backgroundColor: bgColor }}
+        transition={{ duration: morphActive ? durationSec : 0 }}
+        style={{
+          width: CANVAS_WIDTH,
+          height: CANVAS_HEIGHT,
+          transform: `scale(${scale})`,
+          transformOrigin: "top left",
+          position: "absolute",
+          top: 0,
+          left: 0,
+          backgroundImage: resolvedBgImage ? `url(${resolvedBgImage})` : undefined,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          cursor: onAdvance ? "default" : undefined,
+        }}
+      >
+        {slide.elements.map((element) => {
+          const oldEl = morphActive ? oldElementMap.get(element.id) : undefined;
+          const isShared = oldEl !== undefined;
+          const isNew = morphActive && !isShared;
 
-          {/* Added elements — fade in */}
-          <AnimatePresence>
-            {addedElements.map((element) => (
+          // Outer div: position + rotation (default transformOrigin = center).
+          // Size is set statically to the NEW element's dimensions.
+          // Inner div: scaleX/scaleY from top-left to visually morph size
+          // (GPU-accelerated transform, no layout thrashing).
+          const outerAnimate = isShared
+            ? {
+                opacity: 1,
+                x: [oldEl.position.x, element.position.x],
+                y: [oldEl.position.y, element.position.y],
+                rotate: [oldEl.rotation ?? 0, element.rotation ?? 0],
+              }
+            : {
+                opacity: 1,
+                x: element.position.x,
+                y: element.position.y,
+                rotate: element.rotation ?? 0,
+              };
+
+          const innerAnimate = isShared
+            ? {
+                scaleX: [oldEl.size.w / element.size.w, 1],
+                scaleY: [oldEl.size.h / element.size.h, 1],
+              }
+            : { scaleX: 1, scaleY: 1 };
+
+          return (
+            <motion.div
+              key={element.id}
+              initial={isNew ? { opacity: 0, x: element.position.x, y: element.position.y } : false}
+              animate={outerAnimate}
+              transition={{
+                duration: morphActive ? durationSec : 0,
+                ease: [0.4, 0, 0.2, 1],
+                ...(isNew
+                  ? { opacity: { duration: durationSec * 0.7, delay: durationSec * 0.3 } }
+                  : {}),
+              }}
+              style={{
+                position: "absolute",
+                left: 0,
+                top: 0,
+                width: element.size.w,
+                height: element.size.h,
+              }}
+            >
               <motion.div
-                key={element.id}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: durationSec, delay: durationSec * 0.3 }}
-                className="absolute"
+                animate={innerAnimate}
+                transition={{
+                  duration: morphActive ? durationSec : 0,
+                  ease: [0.4, 0, 0.2, 1],
+                }}
+                style={{ width: "100%", height: "100%", transformOrigin: "0 0" }}
+              >
+                <ElementRenderer
+                  element={element}
+                  noPosition
+                  animations={animationMap?.get(element.id)}
+                  activeAnimations={activeAnimations}
+                  delayOverrides={delayOverrides}
+                />
+              </motion.div>
+            </motion.div>
+          );
+        })}
+
+        <AnimatePresence>
+          {morphActive &&
+            removedElements.map((element) => (
+              <motion.div
+                key={`removed-${element.id}`}
+                initial={{ opacity: 1 }}
+                animate={{ opacity: 0 }}
+                transition={{ duration: durationSec * 0.7 }}
                 style={{
+                  position: "absolute",
                   left: element.position.x,
                   top: element.position.y,
                   width: element.size.w,
@@ -182,40 +227,11 @@ export function MorphTransition({
                   transform: element.rotation ? `rotate(${element.rotation}deg)` : undefined,
                 }}
               >
-                <ElementRenderer
-                  element={element}
-                  animations={animationMap?.get(element.id)}
-                  activeAnimations={activeAnimations}
-                  delayOverrides={delayOverrides}
-                />
+                <ElementRenderer element={element} noPosition />
               </motion.div>
             ))}
-          </AnimatePresence>
-
-          {/* Removed elements — fade out */}
-          <AnimatePresence>
-            {morphing &&
-              removedElements.map((element) => (
-                <motion.div
-                  key={`removed-${element.id}`}
-                  initial={{ opacity: 1 }}
-                  animate={{ opacity: 0 }}
-                  transition={{ duration: durationSec * 0.7 }}
-                  className="absolute"
-                  style={{
-                    left: element.position.x,
-                    top: element.position.y,
-                    width: element.size.w,
-                    height: element.size.h,
-                    transform: element.rotation ? `rotate(${element.rotation}deg)` : undefined,
-                  }}
-                >
-                  <ElementRenderer element={element} />
-                </motion.div>
-              ))}
-          </AnimatePresence>
-        </motion.div>
-      </LayoutGroup>
+        </AnimatePresence>
+      </motion.div>
     </div>
   );
 
@@ -223,43 +239,4 @@ export function MorphTransition({
     return <ThemeProvider theme={theme}>{content}</ThemeProvider>;
   }
   return content;
-}
-
-function MorphElement({
-  layoutId,
-  element,
-  duration,
-  animations,
-  activeAnimations,
-  delayOverrides,
-}: {
-  layoutId: string;
-  element: import("@/types/deck").SlideElement;
-  duration: number;
-  animations?: Animation[];
-  activeAnimations?: Set<Animation>;
-  delayOverrides?: Map<Animation, number>;
-}) {
-  return (
-    <motion.div
-      layoutId={layoutId}
-      layout
-      transition={{ duration, ease: [0.4, 0, 0.2, 1] }}
-      className="absolute"
-      style={{
-        left: element.position.x,
-        top: element.position.y,
-        width: element.size.w,
-        height: element.size.h,
-        transform: element.rotation ? `rotate(${element.rotation}deg)` : undefined,
-      }}
-    >
-      <ElementRenderer
-        element={element}
-        animations={animations}
-        activeAnimations={activeAnimations}
-        delayOverrides={delayOverrides}
-      />
-    </motion.div>
-  );
 }

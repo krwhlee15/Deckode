@@ -243,6 +243,16 @@ export function EditorLayout() {
         }
         return;
       }
+      // Navigate slides with arrow keys when no element is selected
+      if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+        const { selectedElementIds, prevSlide, nextSlide } = useDeckStore.getState();
+        if (selectedElementIds.length === 0) {
+          e.preventDefault();
+          if (e.key === "ArrowUp") prevSlide();
+          else nextSlide();
+          return;
+        }
+      }
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);

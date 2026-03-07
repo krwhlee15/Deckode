@@ -295,7 +295,7 @@ function SortableSlideItem({
             </div>
           )}
         </div>
-        <span className="absolute bottom-0.5 right-1.5 text-[10px] text-zinc-500 font-mono">
+        <span className="absolute bottom-1 right-2 text-xs text-zinc-400 font-mono font-semibold drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
           {index + 1}
         </span>
       </button>

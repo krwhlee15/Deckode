@@ -364,7 +364,7 @@ function ElementStyleEditor({
           <>
             <SelectField label="Theme" value={element.style?.theme} options={CODE_THEMES} onChange={(v) => patchStyle("theme", v)} />
             <NumberField label="Font Size" value={element.style?.fontSize} onChange={(v) => patchStyle("fontSize", v)} min={8} max={48} />
-            <NumberField label="Border Radius" value={element.style?.borderRadius} onChange={(v) => patchStyle("borderRadius", v)} min={0} max={32} />
+            <NumberField label="Border Radius" value={element.style?.borderRadius ?? 0} onChange={(v) => patchStyle("borderRadius", v)} min={0} max={32} />
           </>
         )}
         {element.type === "shape" && (
@@ -372,34 +372,34 @@ function ElementStyleEditor({
             <ColorField label="Fill" value={element.style?.fill} onChange={(v) => patchStyle("fill", v)} />
             <ColorField label="Stroke" value={element.style?.stroke} onChange={(v) => patchStyle("stroke", v)} />
             <NumberField label="Stroke Width" value={element.style?.strokeWidth} onChange={(v) => patchStyle("strokeWidth", v)} min={0} max={20} />
-            <NumberField label="Border Radius" value={element.style?.borderRadius} onChange={(v) => patchStyle("borderRadius", v)} min={0} max={100} />
-            <NumberField label="Opacity" value={element.style?.opacity} onChange={(v) => patchStyle("opacity", v)} min={0} max={1} step={0.05} />
+            <NumberField label="Border Radius" value={element.style?.borderRadius ?? 0} onChange={(v) => patchStyle("borderRadius", v)} min={0} max={100} />
+            <NumberField label="Opacity" value={element.style?.opacity ?? 1} onChange={(v) => patchStyle("opacity", v)} min={0} max={1} step={0.05} />
           </>
         )}
         {element.type === "image" && (
           <>
             <TextField label="Alt Text" value={element.alt} onChange={(v) => updateElement(slideId, element.id, { alt: v } as Partial<SlideElement>)} placeholder="Describe the image" />
             <SelectField label="Object Fit" value={element.style?.objectFit} options={OBJECT_FIT_OPTIONS} onChange={(v) => patchStyle("objectFit", v)} />
-            <NumberField label="Border Radius" value={element.style?.borderRadius} onChange={(v) => patchStyle("borderRadius", v)} min={0} max={100} />
-            <NumberField label="Opacity" value={element.style?.opacity} onChange={(v) => patchStyle("opacity", v)} min={0} max={1} step={0.05} />
+            <NumberField label="Border Radius" value={element.style?.borderRadius ?? 0} onChange={(v) => patchStyle("borderRadius", v)} min={0} max={100} />
+            <NumberField label="Opacity" value={element.style?.opacity ?? 1} onChange={(v) => patchStyle("opacity", v)} min={0} max={1} step={0.05} />
           </>
         )}
         {element.type === "video" && (
           <>
             <SelectField label="Object Fit" value={element.style?.objectFit} options={OBJECT_FIT_OPTIONS} onChange={(v) => patchStyle("objectFit", v)} />
-            <NumberField label="Border Radius" value={element.style?.borderRadius} onChange={(v) => patchStyle("borderRadius", v)} min={0} max={100} />
+            <NumberField label="Border Radius" value={element.style?.borderRadius ?? 0} onChange={(v) => patchStyle("borderRadius", v)} min={0} max={100} />
           </>
         )}
         {element.type === "tikz" && (
           <>
             <ColorField label="Background" value={element.style?.backgroundColor} onChange={(v) => patchStyle("backgroundColor", v)} />
-            <NumberField label="Border Radius" value={element.style?.borderRadius} onChange={(v) => patchStyle("borderRadius", v)} min={0} max={32} />
+            <NumberField label="Border Radius" value={element.style?.borderRadius ?? 0} onChange={(v) => patchStyle("borderRadius", v)} min={0} max={32} />
           </>
         )}
         {element.type === "mermaid" && (
           <>
             <ColorField label="Background" value={element.style?.backgroundColor} onChange={(v) => patchStyle("backgroundColor", v)} />
-            <NumberField label="Border Radius" value={element.style?.borderRadius} onChange={(v) => patchStyle("borderRadius", v)} min={0} max={32} />
+            <NumberField label="Border Radius" value={element.style?.borderRadius ?? 0} onChange={(v) => patchStyle("borderRadius", v)} min={0} max={32} />
           </>
         )}
         {element.type === "table" && (
@@ -409,7 +409,7 @@ function ElementStyleEditor({
             <ColorField label="Header BG" value={element.style?.headerBackground} onChange={(v) => patchStyle("headerBackground", v)} />
             <ColorField label="Header Color" value={element.style?.headerColor} onChange={(v) => patchStyle("headerColor", v)} />
             <ColorField label="Border Color" value={element.style?.borderColor} onChange={(v) => patchStyle("borderColor", v)} />
-            <NumberField label="Border Radius" value={element.style?.borderRadius} onChange={(v) => patchStyle("borderRadius", v)} min={0} max={32} />
+            <NumberField label="Border Radius" value={element.style?.borderRadius ?? 0} onChange={(v) => patchStyle("borderRadius", v)} min={0} max={32} />
           </>
         )}
       </div>

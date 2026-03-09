@@ -90,7 +90,7 @@ export function isPdfSrc(src: string): boolean {
 export async function rasterizePdfToBase64(
   src: string,
   width: number,
-  height: number,
+  _height: number,
 ): Promise<string | null> {
   const { GlobalWorkerOptions, getDocument } = await import("pdfjs-dist");
   GlobalWorkerOptions.workerSrc = new URL(
@@ -113,7 +113,7 @@ export async function rasterizePdfToBase64(
   const canvas = document.createElement("canvas");
   canvas.width = viewport.width;
   canvas.height = viewport.height;
-  await page.render({ canvasContext: canvas.getContext("2d")!, viewport }).promise;
+  await page.render({ canvas, viewport }).promise;
 
   const dataUrl = canvas.toDataURL("image/png");
   doc.destroy();

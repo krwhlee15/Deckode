@@ -196,6 +196,12 @@ export function SlideList() {
           {...contextMenu}
           canDelete={deck.slides.length > 1}
           isHidden={!!deck.slides[contextMenu.slideIndex]?.hidden}
+          onNewSlide={() => {
+            const slide = createBlankSlide();
+            addSlide(slide, contextMenu.slideIndex);
+            setCurrentSlide(contextMenu.slideIndex + 1);
+            closeContextMenu();
+          }}
           onToggleHidden={() => { toggleSlideHidden(contextMenu.slideId); closeContextMenu(); }}
           onDelete={() => { handleDeleteSlide(contextMenu.slideId, contextMenu.slideIndex); closeContextMenu(); }}
           onClose={closeContextMenu}
@@ -326,6 +332,7 @@ function SlideContextMenu({
   y,
   isHidden,
   canDelete,
+  onNewSlide,
   onToggleHidden,
   onDelete,
   onClose,
@@ -336,6 +343,7 @@ function SlideContextMenu({
   slideIndex: number;
   isHidden: boolean;
   canDelete: boolean;
+  onNewSlide: () => void;
   onToggleHidden: () => void;
   onDelete: () => void;
   onClose: () => void;
@@ -352,6 +360,8 @@ function SlideContextMenu({
         className="fixed bg-zinc-800 border border-zinc-700 rounded-md shadow-xl py-1 min-w-[160px] text-xs"
         style={{ left: x, top: y, pointerEvents: "auto", zIndex: 50 }}
       >
+        <ContextMenuItem label="New Slide" onClick={onNewSlide} />
+        <div className="h-px bg-zinc-700 my-1" />
         <ContextMenuItem
           label={isHidden ? "Show Slide" : "Hide Slide"}
           onClick={onToggleHidden}

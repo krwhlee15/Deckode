@@ -274,6 +274,15 @@ export interface Animation {
   key?: string;
 }
 
+// ----- Comments -----
+
+export interface Comment {
+  id: string;
+  elementId?: string;
+  text: string;
+  createdAt: number;
+}
+
 // ----- Slide -----
 
 export interface Slide {
@@ -285,6 +294,7 @@ export interface Slide {
   notes?: string;
   elements: SlideElement[];
   animations?: Animation[];
+  comments?: Comment[];
   /** Tracks external file origin when loaded from a $ref pointer */
   _ref?: string;
 }

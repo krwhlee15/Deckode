@@ -3,6 +3,7 @@ import { useDeckStore } from "@/stores/deckStore";
 import type { Slide, SlideElement, TikZElement, MermaidElement, TableElement, CustomElement, Scene3DElement } from "@/types/deck";
 import { useAdapter } from "@/contexts/AdapterContext";
 import { AnimationEditor } from "./AnimationEditor";
+import { CommentList } from "./CommentList";
 import {
   ColorField,
   NumberField,
@@ -207,6 +208,9 @@ export function PropertyPanel() {
         elementId={element.id}
         animations={slide.animations ?? []}
       />
+
+      {/* Comments */}
+      <CommentList slideId={slide.id} elementId={element.id} />
     </div>
   );
 }
@@ -321,6 +325,11 @@ function SlidePropertiesPanel({
           />
         </div>
       </div>
+
+      {/* Comments (all comments on this slide) */}
+      {selectedSlides.length === 1 && (
+        <CommentList slideId={selectedSlides[0]!.id} />
+      )}
 
     </div>
   );

@@ -163,6 +163,7 @@ export function SlideList() {
               scale={thumbScale}
               isCurrent={index === currentSlideIndex}
               isSelected={selectedSlideIds.includes(slide.id)}
+              hasComments={!!slide.comments?.length}
               onSelect={(e: React.MouseEvent) => {
                 if (e.ctrlKey || e.metaKey) {
                   // Toggle in/out of selection
@@ -253,6 +254,7 @@ function SortableSlideItem({
   scale,
   isCurrent,
   isSelected,
+  hasComments,
   onSelect,
   onContextMenu,
   theme,
@@ -262,6 +264,7 @@ function SortableSlideItem({
   scale: number;
   isCurrent: boolean;
   isSelected: boolean;
+  hasComments: boolean;
   onSelect: (e: React.MouseEvent) => void;
   onContextMenu: (x: number, y: number) => void;
   theme?: DeckTheme;
@@ -308,7 +311,10 @@ function SortableSlideItem({
         </span>
       </button>
 
-      {/* Delete via right-click context menu only */}
+      {/* Comment badge */}
+      {hasComments && (
+        <div className="absolute top-0.5 right-0.5 w-2 h-2 rounded-full bg-amber-500 border border-amber-400" />
+      )}
     </div>
   );
 }

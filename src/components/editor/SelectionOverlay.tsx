@@ -38,6 +38,15 @@ export function SelectionOverlay({ slide, scale }: Props) {
 
   const closeContextMenu = useCallback(() => setContextMenu(null), []);
 
+  // Elements that have comments attached
+  const commentedElementIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const c of slide.comments ?? []) {
+      if (c.elementId) ids.add(c.elementId);
+    }
+    return ids;
+  }, [slide.comments]);
+
   // Active group IDs: groups where any member is selected
   const activeGroupIds = useMemo(() => {
     const ids = new Set<string>();
@@ -109,6 +118,7 @@ export function SelectionOverlay({ slide, scale }: Props) {
         <InteractiveElement
           key={element.id + (highlightedElementIds.includes(element.id) ? "-hl" : "")}
           isHighlighted={highlightedElementIds.includes(element.id)}
+          hasComment={commentedElementIds.has(element.id)}
           element={element}
           slideId={slide.id}
           isSelected={selectedElementIds.includes(element.id) || moveTargetIds.has(element.id)}
@@ -186,6 +196,7 @@ interface InteractiveProps {
   isSelected: boolean;
   showResizeHandles: boolean;
   isHighlighted: boolean;
+  hasComment: boolean;
   onSelect: (e: React.MouseEvent) => void;
   onMove: (dx: number, dy: number) => void;
   onResize: (dx: number, dy: number, dw: number, dh: number) => void;
@@ -193,7 +204,7 @@ interface InteractiveProps {
   scale: number;
 }
 
-function InteractiveElement({ element, isSelected, showResizeHandles, isHighlighted, onSelect, onMove, onResize, onContextMenu, scale }: InteractiveProps) {
+function InteractiveElement({ element, isSelected, showResizeHandles, isHighlighted, hasComment, onSelect, onMove, onResize, onContextMenu, scale }: InteractiveProps) {
   const dragStart = useRef<{ x: number; y: number; ex: number; ey: number } | null>(null);
 
   const handleMouseDown = useCallback(
@@ -378,6 +389,14 @@ function InteractiveElement({ element, isSelected, showResizeHandles, isHighligh
           <ResizeHandle corner="sw" onMouseDown={handleResizeMouseDown} />
           <ResizeHandle corner="se" onMouseDown={handleResizeMouseDown} />
         </>
+      )}
+
+      {/* Comment badge */}
+      {hasComment && (
+        <div
+          className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-amber-500 border border-amber-400"
+          style={{ pointerEvents: "none" }}
+        />
       )}
     </motion.div>
   );

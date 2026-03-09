@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { immer } from "zustand/middleware/immer";
 import { subscribeWithSelector } from "zustand/middleware";
 import { temporal } from "zundo";
-import type { Animation, Deck, DeckTheme, Slide, SlideElement } from "@/types/deck";
+import type { Animation, Comment, Deck, DeckTheme, Slide, SlideElement } from "@/types/deck";
 import type { FileSystemAdapter } from "@/adapters/types";
 import { nextElementId } from "@/utils/id";
 import { assert } from "@/utils/assert";
@@ -52,6 +52,9 @@ interface DeckState {
   updateAnimation: (slideId: string, index: number, patch: Partial<Animation>) => void;
   deleteAnimation: (slideId: string, index: number) => void;
   moveAnimation: (slideId: string, fromIndex: number, toIndex: number) => void;
+  addComment: (slideId: string, comment: Comment) => void;
+  updateComment: (slideId: string, commentId: string, text: string) => void;
+  deleteComment: (slideId: string, commentId: string) => void;
   updateTheme: (patch: Partial<DeckTheme>) => void;
   toggleSlideHidden: (slideId: string) => void;
   highlightElements: (ids: string[]) => void;
@@ -341,6 +344,10 @@ export const useDeckStore = create<DeckState>()(
             if (slide.animations) {
               slide.animations = slide.animations.filter(a => a.target !== elementId);
             }
+            if (slide.comments) {
+              slide.comments = slide.comments.filter(c => c.elementId !== elementId);
+              if (slide.comments.length === 0) delete slide.comments;
+            }
             state.selectedElementIds = state.selectedElementIds.filter(id => id !== elementId);
             // Auto-ungroup if group has 0-1 members remaining
             if (removedGroupId) {
@@ -403,6 +410,38 @@ export const useDeckStore = create<DeckState>()(
             assert(toIndex >= 0 && toIndex < anims.length, `toIndex ${toIndex} out of bounds`);
             const [moved] = anims.splice(fromIndex, 1);
             anims.splice(toIndex, 0, moved!);
+            state.isDirty = true;
+          }),
+
+        addComment: (slideId, comment) =>
+          set((state) => {
+            assert(state.deck !== null, "No deck loaded");
+            const slide = getSlide(state.deck.slides, slideId);
+            if (!slide.comments) slide.comments = [];
+            slide.comments.push(comment);
+            state.isDirty = true;
+          }),
+
+        updateComment: (slideId, commentId, text) =>
+          set((state) => {
+            assert(state.deck !== null, "No deck loaded");
+            const slide = getSlide(state.deck.slides, slideId);
+            assert(slide.comments !== undefined, `Slide ${slideId} has no comments`);
+            const comment = slide.comments.find(c => c.id === commentId);
+            assert(comment !== undefined, `Comment ${commentId} not found`);
+            comment.text = text;
+            state.isDirty = true;
+          }),
+
+        deleteComment: (slideId, commentId) =>
+          set((state) => {
+            assert(state.deck !== null, "No deck loaded");
+            const slide = getSlide(state.deck.slides, slideId);
+            assert(slide.comments !== undefined, `Slide ${slideId} has no comments`);
+            const idx = slide.comments.findIndex(c => c.id === commentId);
+            assert(idx !== -1, `Comment ${commentId} not found`);
+            slide.comments.splice(idx, 1);
+            if (slide.comments.length === 0) delete slide.comments;
             state.isDirty = true;
           }),
 

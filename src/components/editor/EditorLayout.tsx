@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useDeckStore } from "@/stores/deckStore";
+import type { SlideElement } from "@/types/deck";
+import { nextElementId } from "@/utils/id";
 import { findUndoChanges } from "@/utils/deckDiff";
 import { skipNextRestore } from "@/utils/handleStore";
 import { SlideList } from "./SlideList";
@@ -17,6 +19,9 @@ import { exportToNativePdf } from "@/components/export/pdfNativeExport";
 import { exportToPptx } from "@/components/export/pptxExport";
 import { useAdapter } from "@/contexts/AdapterContext";
 import { useTikzAutoRender } from "@/hooks/useTikzAutoRender";
+
+// Module-level element clipboard (not in store — not undoable)
+let elementClipboard: SlideElement[] | null = null;
 
 function performUndoRedo(direction: "undo" | "redo") {
   const temporal = useDeckStore.temporal.getState();
@@ -166,6 +171,75 @@ export function EditorLayout() {
 
       // Skip remaining shortcuts if typing in an input
       if (isInput) return;
+
+      // Copy: Ctrl+C
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.code === "KeyC") {
+        const { deck, currentSlideIndex, selectedElementIds } = useDeckStore.getState();
+        if (deck && selectedElementIds.length > 0) {
+          const slide = deck.slides[currentSlideIndex];
+          if (slide) {
+            const elements = selectedElementIds
+              .map(id => slide.elements.find(el => el.id === id))
+              .filter((el): el is SlideElement => el !== undefined);
+            if (elements.length > 0) {
+              elementClipboard = JSON.parse(JSON.stringify(elements));
+              e.preventDefault();
+            }
+          }
+        }
+        return;
+      }
+      // Cut: Ctrl+X
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.code === "KeyX") {
+        const { deck, currentSlideIndex, selectedElementIds, deleteElement } = useDeckStore.getState();
+        if (deck && selectedElementIds.length > 0) {
+          const slide = deck.slides[currentSlideIndex];
+          if (slide) {
+            const elements = selectedElementIds
+              .map(id => slide.elements.find(el => el.id === id))
+              .filter((el): el is SlideElement => el !== undefined);
+            if (elements.length > 0) {
+              elementClipboard = JSON.parse(JSON.stringify(elements));
+              for (const elId of [...selectedElementIds]) {
+                deleteElement(slide.id, elId);
+              }
+              e.preventDefault();
+            }
+          }
+        }
+        return;
+      }
+      // Paste: Ctrl+V (elements from internal clipboard)
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.code === "KeyV") {
+        if (elementClipboard && elementClipboard.length > 0) {
+          const { deck, currentSlideIndex, addElement, selectElement } = useDeckStore.getState();
+          if (deck) {
+            const slide = deck.slides[currentSlideIndex];
+            if (slide) {
+              const newIds: string[] = [];
+              for (const original of elementClipboard) {
+                const clone = JSON.parse(JSON.stringify(original)) as SlideElement;
+                clone.id = nextElementId();
+                clone.position = { x: original.position.x + 20, y: original.position.y + 20 };
+                delete clone.groupId;
+                addElement(slide.id, clone);
+                newIds.push(clone.id);
+              }
+              // Offset clipboard so next paste cascades
+              for (const el of elementClipboard) {
+                el.position = { x: el.position.x + 20, y: el.position.y + 20 };
+              }
+              selectElement(newIds[0]!);
+              for (let i = 1; i < newIds.length; i++) {
+                selectElement(newIds[i]!, "add");
+              }
+              e.preventDefault();
+            }
+          }
+        }
+        // No element clipboard → don't preventDefault, let paste event handle file paste
+        return;
+      }
 
       // Undo: Ctrl+Z
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.code === "KeyZ") {

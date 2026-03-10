@@ -2,6 +2,7 @@ import { lazy, Suspense } from "react";
 import type { ImageElement as ImageElementType, ImageStyle } from "@/types/deck";
 import { useElementStyle } from "@/contexts/ThemeContext";
 import { useAssetUrl } from "@/contexts/AdapterContext";
+import { useDeckStore } from "@/stores/deckStore";
 
 const PdfRenderer = lazy(() => import("./PdfRenderer"));
 
@@ -17,6 +18,7 @@ interface Props {
 export function ImageElementRenderer({ element }: Props) {
   const style = useElementStyle<ImageStyle>("image", element.style);
   const resolvedSrc = useAssetUrl(element.src);
+  const isCropping = useDeckStore((s) => s.cropElementId === element.id);
 
   if (!resolvedSrc) return null;
 
@@ -54,7 +56,8 @@ export function ImageElementRenderer({ element }: Props) {
   }
 
   const crop = style.crop;
-  const clipPath = crop
+  const hasCrop = !isCropping && crop && (crop.top || crop.right || crop.bottom || crop.left);
+  const clipPath = hasCrop
     ? `inset(${crop.top * 100}% ${crop.right * 100}% ${crop.bottom * 100}% ${crop.left * 100}%)`
     : undefined;
 

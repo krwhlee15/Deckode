@@ -2,6 +2,7 @@ import { useRef, useEffect } from "react";
 import type { VideoElement as VideoElementType, VideoStyle } from "@/types/deck";
 import { useElementStyle } from "@/contexts/ThemeContext";
 import { useAssetUrl } from "@/contexts/AdapterContext";
+import { useDeckStore } from "@/stores/deckStore";
 import { parseVideoUrl } from "@/utils/videoParser";
 
 interface Props {
@@ -69,9 +70,10 @@ export function VideoElementRenderer({ element, thumbnail, videoStep, editorMode
   const style = useElementStyle<VideoStyle>("video", element.style);
   const resolvedSrc = useAssetUrl(element.src);
 
+  const isCropping = useDeckStore((s) => s.cropElementId === element.id);
   const { w, h } = element.size;
   const crop = style.crop;
-  const hasCrop = crop && (crop.top || crop.right || crop.bottom || crop.left);
+  const hasCrop = !isCropping && crop && (crop.top || crop.right || crop.bottom || crop.left);
 
   const clipPath = hasCrop
     ? `inset(${crop.top * 100}% ${crop.right * 100}% ${crop.bottom * 100}% ${crop.left * 100}%)`

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useDeckStore } from "@/stores/deckStore";
-import type { Slide, SlideElement, TikZElement, MermaidElement, TableElement, CustomElement, Scene3DElement, ImageElement, VideoElement } from "@/types/deck";
+import type { Slide, SlideElement, TikZElement, MermaidElement, TableElement, CustomElement, Scene3DElement, ImageElement, VideoElement, CropRect } from "@/types/deck";
 import { useAdapter } from "@/contexts/AdapterContext";
 import { AnimationEditor } from "./AnimationEditor";
 import { CommentList } from "./CommentList";
@@ -975,13 +975,22 @@ function CropActions({
   const setCropElement = useDeckStore((s) => s.setCropElement);
   const cropElementId = useDeckStore((s) => s.cropElementId);
   const updateElement = useDeckStore((s) => s.updateElement);
-  const hasCrop = !!element.style?.crop;
+  const crop = element.style?.crop;
+  const hasCrop = !!(crop && (crop.top || crop.right || crop.bottom || crop.left));
   const isActive = cropElementId === element.id;
+
+  const patchCrop = (key: keyof CropRect, value: number | undefined) => {
+    const cur = crop ?? { top: 0, right: 0, bottom: 0, left: 0 };
+    const next = { ...cur, [key]: value ?? 0 };
+    updateElement(slideId, element.id, {
+      style: { ...element.style, crop: next },
+    } as Partial<SlideElement>);
+  };
 
   return (
     <div>
       <FieldLabel>Crop</FieldLabel>
-      <div className="flex gap-2">
+      <div className="flex gap-2 mb-2">
         <button
           onClick={() => setCropElement(isActive ? null : element.id)}
           className={`flex-1 px-3 py-1.5 text-xs font-medium rounded transition-colors ${
@@ -1003,9 +1012,15 @@ function CropActions({
             }}
             className="flex-1 px-3 py-1.5 text-xs font-medium rounded bg-zinc-800 text-zinc-400 hover:text-zinc-200 border border-zinc-700 hover:border-zinc-500 transition-colors"
           >
-            Reset Crop
+            Reset
           </button>
         )}
+      </div>
+      <div className="grid grid-cols-2 gap-x-2 gap-y-1">
+        <NumberField label="Top %" value={Math.round((crop?.top ?? 0) * 100)} onChange={(v) => patchCrop("top", (v ?? 0) / 100)} min={0} max={95} step={1} />
+        <NumberField label="Bottom %" value={Math.round((crop?.bottom ?? 0) * 100)} onChange={(v) => patchCrop("bottom", (v ?? 0) / 100)} min={0} max={95} step={1} />
+        <NumberField label="Left %" value={Math.round((crop?.left ?? 0) * 100)} onChange={(v) => patchCrop("left", (v ?? 0) / 100)} min={0} max={95} step={1} />
+        <NumberField label="Right %" value={Math.round((crop?.right ?? 0) * 100)} onChange={(v) => patchCrop("right", (v ?? 0) / 100)} min={0} max={95} step={1} />
       </div>
     </div>
   );

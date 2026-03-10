@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useState, useRef } from "react";
 import { useDeckStore, setDeckDragging } from "@/stores/deckStore";
 import type { SlideElement, CropRect } from "@/types/deck";
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from "@/types/deck";
@@ -17,7 +17,14 @@ interface Props {
 export function CropOverlay({ element, slideId, scale }: Props) {
   const updateElement = useDeckStore((s) => s.updateElement);
   const style = (element as { style?: { crop?: CropRect } }).style;
-  const crop = style?.crop ?? { top: 0, right: 0, bottom: 0, left: 0 };
+  const storeCrop = style?.crop ?? { top: 0, right: 0, bottom: 0, left: 0 };
+
+  // Local crop state used during drag for responsive overlay without store updates
+  const [localCrop, setLocalCrop] = useState<CropRect | null>(null);
+  const crop = localCrop ?? storeCrop;
+
+  const styleRef = useRef(style);
+  styleRef.current = style;
 
   const { w, h } = element.size;
   const ex = element.position.x;
@@ -29,13 +36,13 @@ export function CropOverlay({ element, slideId, scale }: Props) {
   const visW = w * (1 - crop.left - crop.right);
   const visH = h * (1 - crop.top - crop.bottom);
 
-  const applyCrop = useCallback(
+  const commitCrop = useCallback(
     (newCrop: CropRect) => {
       updateElement(slideId, element.id, {
-        style: { ...style, crop: newCrop },
+        style: { ...styleRef.current, crop: newCrop },
       } as Partial<SlideElement>);
     },
-    [slideId, element.id, style, updateElement],
+    [slideId, element.id, updateElement],
   );
 
   const handleCornerMouseDown = useCallback(
@@ -45,7 +52,7 @@ export function CropOverlay({ element, slideId, scale }: Props) {
       setDeckDragging(true);
       const startX = e.clientX;
       const startY = e.clientY;
-      const orig = { ...crop };
+      const orig = { ...storeCrop };
 
       const prevent = (ev: Event) => ev.preventDefault();
       document.addEventListener("selectstart", prevent);
@@ -69,7 +76,7 @@ export function CropOverlay({ element, slideId, scale }: Props) {
           next.right = clamp(orig.right - dx / w, 0, 1 - orig.left - MIN_VISIBLE);
         }
 
-        applyCrop(next);
+        setLocalCrop(next);
       };
 
       const handleMouseUp = () => {
@@ -77,12 +84,17 @@ export function CropOverlay({ element, slideId, scale }: Props) {
         document.removeEventListener("selectstart", prevent);
         window.removeEventListener("mousemove", handleMouseMove);
         window.removeEventListener("mouseup", handleMouseUp);
+        // Read final local crop and commit to store
+        setLocalCrop((prev) => {
+          if (prev) commitCrop(prev);
+          return null;
+        });
       };
 
       window.addEventListener("mousemove", handleMouseMove);
       window.addEventListener("mouseup", handleMouseUp);
     },
-    [crop, w, h, scale, applyCrop],
+    [storeCrop, w, h, scale, commitCrop],
   );
 
   const handleEdgeMouseDown = useCallback(
@@ -92,7 +104,7 @@ export function CropOverlay({ element, slideId, scale }: Props) {
       setDeckDragging(true);
       const startX = e.clientX;
       const startY = e.clientY;
-      const orig = { ...crop };
+      const orig = { ...storeCrop };
 
       const prevent = (ev: Event) => ev.preventDefault();
       document.addEventListener("selectstart", prevent);
@@ -118,7 +130,7 @@ export function CropOverlay({ element, slideId, scale }: Props) {
             break;
         }
 
-        applyCrop(next);
+        setLocalCrop(next);
       };
 
       const handleMouseUp = () => {
@@ -126,12 +138,16 @@ export function CropOverlay({ element, slideId, scale }: Props) {
         document.removeEventListener("selectstart", prevent);
         window.removeEventListener("mousemove", handleMouseMove);
         window.removeEventListener("mouseup", handleMouseUp);
+        setLocalCrop((prev) => {
+          if (prev) commitCrop(prev);
+          return null;
+        });
       };
 
       window.addEventListener("mousemove", handleMouseMove);
       window.addEventListener("mouseup", handleMouseUp);
     },
-    [crop, w, h, scale, applyCrop],
+    [storeCrop, w, h, scale, commitCrop],
   );
 
   // L-handle arm length

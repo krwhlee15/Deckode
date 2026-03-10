@@ -1,7 +1,7 @@
 import { useRef, useCallback, useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
 import { useDeckStore, setDeckDragging } from "@/stores/deckStore";
-import type { Slide, SlideElement, VideoElement as VideoElementType } from "@/types/deck";
+import type { Slide, SlideElement, VideoElement as VideoElementType, ImageElement as ImageElementType, CropRect } from "@/types/deck";
 import { CANVAS_HEIGHT } from "@/types/deck";
 import { getElementPositionStyle } from "@/utils/elementStyle";
 import { CropOverlay } from "./CropOverlay";
@@ -380,13 +380,25 @@ function InteractiveElement({ element, isSelected, showResizeHandles, isHighligh
     [element.position.x, element.position.y, element.size.w, element.size.h, scale, onResize],
   );
 
+  // Crop-aware outline: for image/video with crop, outline + handles follow the visible region
+  const crop: CropRect | undefined =
+    (element.type === "image" ? (element as ImageElementType).style?.crop
+    : element.type === "video" ? (element as VideoElementType).style?.crop
+    : undefined);
+  const hasCrop = crop && (crop.top || crop.right || crop.bottom || crop.left);
+
+  // Crop insets as percentages of element size
+  const cropTop = hasCrop ? crop.top * 100 : 0;
+  const cropRight = hasCrop ? crop.right * 100 : 0;
+  const cropBottom = hasCrop ? crop.bottom * 100 : 0;
+  const cropLeft = hasCrop ? crop.left * 100 : 0;
+
   return (
     <>
       <motion.div
         className="absolute cursor-move select-none"
         style={{
           ...getElementPositionStyle(element),
-          outline: isSelected ? "2px solid rgb(59,130,246)" : "none",
           pointerEvents: "auto",
         }}
         draggable={false}
@@ -403,27 +415,37 @@ function InteractiveElement({ element, isSelected, showResizeHandles, isHighligh
         {/* Transparent overlay to capture mouse events */}
         <div className="absolute inset-0" />
 
+        {/* Outline + handles: follows crop bounds if cropped */}
+        <div
+          className="absolute"
+          style={{
+            top: `${cropTop}%`,
+            left: `${cropLeft}%`,
+            right: `${cropRight}%`,
+            bottom: `${cropBottom}%`,
+            outline: isSelected ? "2px solid rgb(59,130,246)" : "none",
+            pointerEvents: "none",
+          }}
+        >
+          {showResizeHandles && (
+            <>
+              <ResizeHandle corner="nw" onMouseDown={handleResizeMouseDown} />
+              <ResizeHandle corner="ne" onMouseDown={handleResizeMouseDown} />
+              <ResizeHandle corner="sw" onMouseDown={handleResizeMouseDown} />
+              <ResizeHandle corner="se" onMouseDown={handleResizeMouseDown} />
+            </>
+          )}
+          {hasComment && (
+            <div
+              className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-amber-500 border border-amber-400"
+              style={{ pointerEvents: "none" }}
+            />
+          )}
+        </div>
+
       {/* Selected video: drag handle on the side closer to canvas center */}
       {element.type === "video" && isSelected && (
         <VideoDragHandle element={element} onMouseDown={handleMouseDown} />
-      )}
-
-      {/* Resize handles (only for single selection) */}
-      {showResizeHandles && (
-        <>
-          <ResizeHandle corner="nw" onMouseDown={handleResizeMouseDown} />
-          <ResizeHandle corner="ne" onMouseDown={handleResizeMouseDown} />
-          <ResizeHandle corner="sw" onMouseDown={handleResizeMouseDown} />
-          <ResizeHandle corner="se" onMouseDown={handleResizeMouseDown} />
-        </>
-      )}
-
-      {/* Comment badge */}
-      {hasComment && (
-        <div
-          className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-amber-500 border border-amber-400"
-          style={{ pointerEvents: "none" }}
-        />
       )}
 
     </motion.div>

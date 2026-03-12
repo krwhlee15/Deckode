@@ -736,6 +736,8 @@ function GroupBox({
         y: m.position.y,
         w: m.size.w,
         h: m.size.h,
+        waypoints: (m.type === "shape" && (m as ShapeElementType).style?.waypoints) || null,
+        style: (m as ShapeElementType).style,
       }));
 
       const prevent = (ev: Event) => ev.preventDefault();
@@ -776,7 +778,7 @@ function GroupBox({
           const sy = newH / ob.h;
 
           for (const orig of origMembers) {
-            updateElement(slideId, orig.id, {
+            const patch: Partial<SlideElement> = {
               position: {
                 x: Math.round(anchorX + (orig.x - anchorX) * sx),
                 y: Math.round(anchorY + (orig.y - anchorY) * sy),
@@ -785,7 +787,17 @@ function GroupBox({
                 w: Math.max(20, Math.round(orig.w * sx)),
                 h: Math.max(20, Math.round(orig.h * sy)),
               },
-            } as Partial<SlideElement>);
+            };
+            if (orig.waypoints) {
+              (patch as any).style = {
+                ...orig.style,
+                waypoints: orig.waypoints.map((p) => ({
+                  x: Math.round(p.x * sx),
+                  y: Math.round(p.y * sy),
+                })),
+              };
+            }
+            updateElement(slideId, orig.id, patch);
           }
         });
       };

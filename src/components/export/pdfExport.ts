@@ -40,6 +40,7 @@ import {
   DEFAULT_CODE_THEME,
   DEFAULT_TABLE_SIZE,
 } from "@/utils/exportUtils";
+import { resolveMarkers } from "@/utils/lineMarkers";
 
 const MIN_FONT_SIZE = 6;
 const CAPTURE_SCALE = 2;
@@ -474,37 +475,105 @@ function buildShape(el: ShapeElement, deck: Deck): HTMLElement {
     svg.setAttribute("width", String(w));
     svg.setAttribute("height", String(h));
     svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
+    svg.style.overflow = "visible";
 
-    if (el.shape === "arrow") {
-      const defs = document.createElementNS(ns, "defs");
+    const { startMarker, endMarker } = resolveMarkers(el, s);
+    const defs = document.createElementNS(ns, "defs");
+    let hasDefs = false;
+
+    const addArrowMarkerDom = (id: string, position: "start" | "end") => {
       const marker = document.createElementNS(ns, "marker");
-      marker.setAttribute("id", `arrow-${el.id}`);
+      marker.setAttribute("id", id);
       marker.setAttribute("markerWidth", "10");
       marker.setAttribute("markerHeight", "7");
-      marker.setAttribute("refX", "9");
+      marker.setAttribute("refX", position === "start" ? "1" : "9");
       marker.setAttribute("refY", "3.5");
-      marker.setAttribute("orient", "auto");
+      marker.setAttribute("orient", position === "start" ? "auto-start-reverse" : "auto");
       const poly = document.createElementNS(ns, "polygon");
       poly.setAttribute("points", "0 0, 10 3.5, 0 7");
       poly.setAttribute("fill", stroke);
       poly.setAttribute("fill-opacity", String(sOp));
       marker.appendChild(poly);
       defs.appendChild(marker);
-      svg.appendChild(defs);
+      hasDefs = true;
+    };
+
+    const addCircleMarkerDom = (id: string, position: "start" | "end") => {
+      const marker = document.createElementNS(ns, "marker");
+      marker.setAttribute("id", id);
+      marker.setAttribute("markerWidth", "8");
+      marker.setAttribute("markerHeight", "8");
+      marker.setAttribute("refX", position === "start" ? "2" : "6");
+      marker.setAttribute("refY", "4");
+      marker.setAttribute("orient", "auto");
+      const circle = document.createElementNS(ns, "circle");
+      circle.setAttribute("cx", "4");
+      circle.setAttribute("cy", "4");
+      circle.setAttribute("r", "3");
+      circle.setAttribute("fill", stroke);
+      circle.setAttribute("fill-opacity", String(sOp));
+      marker.appendChild(circle);
+      defs.appendChild(marker);
+      hasDefs = true;
+    };
+
+    let markerStartAttr: string | undefined;
+    let markerEndAttr: string | undefined;
+
+    if (startMarker !== "none") {
+      const id = `marker-start-${el.id}`;
+      if (startMarker === "arrow") addArrowMarkerDom(id, "start");
+      else addCircleMarkerDom(id, "start");
+      markerStartAttr = `url(#${id})`;
+    }
+    if (endMarker !== "none") {
+      const id = `marker-end-${el.id}`;
+      if (endMarker === "arrow") addArrowMarkerDom(id, "end");
+      else addCircleMarkerDom(id, "end");
+      markerEndAttr = `url(#${id})`;
     }
 
-    const line = document.createElementNS(ns, "line");
-    line.setAttribute("x1", "0");
-    line.setAttribute("y1", String(h / 2));
-    line.setAttribute("x2", String(w));
-    line.setAttribute("y2", String(h / 2));
-    line.setAttribute("stroke", stroke);
-    line.setAttribute("stroke-opacity", String(sOp));
-    line.setAttribute("stroke-width", String(sw));
-    if (el.shape === "arrow") {
-      line.setAttribute("marker-end", `url(#arrow-${el.id})`);
+    if (hasDefs) svg.appendChild(defs);
+
+    const pathD = s.path;
+    const waypoints = s.waypoints;
+    const hasWaypoints = waypoints && waypoints.length >= 2;
+
+    if (hasWaypoints) {
+      svg.setAttribute("style", `opacity:${op};overflow:visible`);
+      const polyline = document.createElementNS(ns, "polyline");
+      polyline.setAttribute("points", waypoints.map((p) => `${p.x},${p.y}`).join(" "));
+      polyline.setAttribute("fill", "none");
+      polyline.setAttribute("stroke", stroke);
+      polyline.setAttribute("stroke-opacity", String(sOp));
+      polyline.setAttribute("stroke-width", String(sw));
+      if (markerStartAttr) polyline.setAttribute("marker-start", markerStartAttr);
+      if (markerEndAttr) polyline.setAttribute("marker-end", markerEndAttr);
+      svg.appendChild(polyline);
+    } else if (pathD) {
+      const path = document.createElementNS(ns, "path");
+      path.setAttribute("d", pathD);
+      path.setAttribute("fill", "none");
+      path.setAttribute("stroke", stroke);
+      path.setAttribute("stroke-opacity", String(sOp));
+      path.setAttribute("stroke-width", String(sw));
+      if (markerStartAttr) path.setAttribute("marker-start", markerStartAttr);
+      if (markerEndAttr) path.setAttribute("marker-end", markerEndAttr);
+      svg.appendChild(path);
+    } else {
+      const line = document.createElementNS(ns, "line");
+      line.setAttribute("x1", "0");
+      line.setAttribute("y1", String(h / 2));
+      line.setAttribute("x2", String(w));
+      line.setAttribute("y2", String(h / 2));
+      line.setAttribute("stroke", stroke);
+      line.setAttribute("stroke-opacity", String(sOp));
+      line.setAttribute("stroke-width", String(sw));
+      if (markerStartAttr) line.setAttribute("marker-start", markerStartAttr);
+      if (markerEndAttr) line.setAttribute("marker-end", markerEndAttr);
+      svg.appendChild(line);
     }
-    svg.appendChild(line);
+
     d.appendChild(svg);
     return d;
   }

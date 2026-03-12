@@ -5,6 +5,8 @@ import type { Slide, SlideElement, VideoElement as VideoElementType, ImageElemen
 import { CANVAS_HEIGHT } from "@/types/deck";
 import { getElementPositionStyle } from "@/utils/elementStyle";
 import { CropOverlay } from "./CropOverlay";
+import { WaypointOverlay } from "./WaypointOverlay";
+import type { ShapeElement as ShapeElementType } from "@/types/deck";
 
 function getGroupBounds(elements: SlideElement[]) {
   let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
@@ -202,6 +204,15 @@ export function SelectionOverlay({ slide, scale }: Props) {
         if (!cropEl) return null;
         return <CropOverlay element={cropEl} slideId={slide.id} scale={scale} />;
       })()}
+      {/* Waypoint overlay for selected line/arrow with waypoints */}
+      {singleSelectedId && !isCropping && (() => {
+        const el = slide.elements.find((e) => e.id === singleSelectedId);
+        if (!el || el.type !== "shape") return null;
+        const shapeEl = el as ShapeElementType;
+        if (shapeEl.shape !== "line" && shapeEl.shape !== "arrow") return null;
+        if (!shapeEl.style?.waypoints || shapeEl.style.waypoints.length < 2) return null;
+        return <WaypointOverlay element={shapeEl} slideId={slide.id} scale={scale} />;
+      })()}
       {contextMenu && (
         <ElementContextMenu
           {...contextMenu}
@@ -232,6 +243,32 @@ interface InteractiveProps {
 const InteractiveElement = memo(function InteractiveElement({ element, isSelected, showResizeHandles, isHighlighted, hasComment, onSelect, onDoubleClick, onMove, onResize, onContextMenu, scale }: InteractiveProps) {
   const dragStart = useRef<{ x: number; y: number; ex: number; ey: number } | null>(null);
 
+  // Compute expanded bounds for line/arrow with waypoints
+  const waypointInfo = useMemo(() => {
+    if (element.type !== "shape") return null;
+    const shape = element as ShapeElementType;
+    if (shape.shape !== "line" && shape.shape !== "arrow") return null;
+    const wps = shape.style?.waypoints;
+    if (!wps || wps.length < 2) return null;
+    const sw = shape.style?.strokeWidth ?? 2;
+    const pad = Math.max(sw / 2 + 8, 10);
+
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const p of wps) {
+      minX = Math.min(minX, p.x);
+      minY = Math.min(minY, p.y);
+      maxX = Math.max(maxX, p.x);
+      maxY = Math.max(maxY, p.y);
+    }
+    return {
+      left: element.position.x + minX - pad,
+      top: element.position.y + minY - pad,
+      width: maxX - minX + pad * 2,
+      height: maxY - minY + pad * 2,
+      points: wps.map(p => ({ x: p.x - minX + pad, y: p.y - minY + pad })),
+    };
+  }, [element]);
+
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
       if (e.button === 2) {
@@ -243,10 +280,17 @@ const InteractiveElement = memo(function InteractiveElement({ element, isSelecte
         if (!useDeckStore.getState().selectedElementIds.includes(element.id)) {
           onSelect(e);
         }
-        onContextMenu(
-          element.position.x + e.nativeEvent.offsetX,
-          element.position.y + e.nativeEvent.offsetY,
-        );
+        if (waypointInfo) {
+          onContextMenu(
+            waypointInfo.left + e.nativeEvent.offsetX,
+            waypointInfo.top + e.nativeEvent.offsetY,
+          );
+        } else {
+          onContextMenu(
+            element.position.x + e.nativeEvent.offsetX,
+            element.position.y + e.nativeEvent.offsetY,
+          );
+        }
         return;
       }
       if (e.button !== 0) {
@@ -309,7 +353,7 @@ const InteractiveElement = memo(function InteractiveElement({ element, isSelecte
       window.addEventListener("mousemove", handleMouseMove);
       window.addEventListener("mouseup", handleMouseUp);
     },
-    [element.position.x, element.position.y, scale, onSelect, onMove, onContextMenu],
+    [element.position.x, element.position.y, scale, onSelect, onMove, onContextMenu, waypointInfo],
   );
 
   const handleContextMenu = useCallback(
@@ -435,7 +479,9 @@ const InteractiveElement = memo(function InteractiveElement({ element, isSelecte
       <motion.div
         className="absolute cursor-move select-none"
         style={{
-          ...getElementPositionStyle(element),
+          ...(waypointInfo
+            ? { left: waypointInfo.left, top: waypointInfo.top, width: waypointInfo.width, height: waypointInfo.height }
+            : getElementPositionStyle(element)),
           pointerEvents: "none",
         }}
         draggable={false}
@@ -444,35 +490,50 @@ const InteractiveElement = memo(function InteractiveElement({ element, isSelecte
         transition={{ duration: 0.8 }}
         onContextMenu={handleContextMenu}
       >
-        {/* Hit-test area: matches crop bounds so clicks outside crop don't select */}
-        <div
-          className="absolute inset-0"
-          style={{
-            pointerEvents: "auto",
-            clipPath: hasCrop
-              ? `inset(${ct * 100}% ${cr * 100}% ${cb * 100}% ${cl * 100}%)`
-              : undefined,
-          }}
-          onMouseDown={handleMouseDown}
-          onDoubleClick={(e) => {
-            e.stopPropagation();
-            onDoubleClick();
-          }}
-        />
+        {/* Hit-test area */}
+        {waypointInfo ? (
+          <svg
+            className="absolute inset-0"
+            style={{ width: "100%", height: "100%", pointerEvents: "none", overflow: "visible" }}
+          >
+            <polyline
+              points={waypointInfo.points.map(p => `${p.x},${p.y}`).join(" ")}
+              fill="none"
+              stroke="transparent"
+              strokeWidth={16}
+              style={{ pointerEvents: "stroke", cursor: "move" }}
+              onMouseDown={handleMouseDown}
+            />
+          </svg>
+        ) : (
+          <div
+            className="absolute inset-0"
+            style={{
+              pointerEvents: "auto",
+              clipPath: hasCrop
+                ? `inset(${ct * 100}% ${cr * 100}% ${cb * 100}% ${cl * 100}%)`
+                : undefined,
+            }}
+            onMouseDown={handleMouseDown}
+            onDoubleClick={(e) => {
+              e.stopPropagation();
+              onDoubleClick();
+            }}
+          />
+        )}
 
-        {/* Outline + handles: follows crop bounds */}
+        {/* Outline + handles */}
         <div
           className="absolute"
           style={{
-            top: `${ct * 100}%`,
-            left: `${cl * 100}%`,
-            right: `${cr * 100}%`,
-            bottom: `${cb * 100}%`,
+            ...(waypointInfo
+              ? { inset: 0 }
+              : { top: `${ct * 100}%`, left: `${cl * 100}%`, right: `${cr * 100}%`, bottom: `${cb * 100}%` }),
             outline: isSelected ? "2px solid rgb(59,130,246)" : "none",
             pointerEvents: "none",
           }}
         >
-          {showResizeHandles && (
+          {showResizeHandles && !waypointInfo && (
             <>
               <ResizeHandle corner="nw" onMouseDown={handleResizeMouseDown} />
               <ResizeHandle corner="ne" onMouseDown={handleResizeMouseDown} />

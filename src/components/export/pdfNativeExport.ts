@@ -37,6 +37,7 @@ import {
   DEFAULT_CODE_THEME,
   DEFAULT_TABLE_SIZE,
 } from "@/utils/exportUtils";
+import { resolveMarkers } from "@/utils/lineMarkers";
 import type { TextRun, ParsedLine } from "@/utils/markdownParser";
 import { parseMarkdownLines } from "@/utils/markdownParser";
 import { parseShikiHtml } from "@/utils/shikiTokenParser";
@@ -709,24 +710,87 @@ function drawShape(doc: jsPDF, el: ShapeElement, deck: Deck): void {
     if (hasFill) setFillColor(doc, fill);
     const drawMode = hasFill ? "FD" : "S";
     doc.ellipse(x + w / 2, y + h / 2, w / 2, h / 2, drawMode);
-  } else if (el.shape === "line") {
-    doc.line(x, y + h / 2, x + w, y + h / 2);
-  } else if (el.shape === "arrow") {
-    doc.line(x, y + h / 2, x + w, y + h / 2);
-    // Draw arrowhead as a filled triangle
-    const headSize = 10;
-    const tipX = x + w;
-    const tipY = y + h / 2;
-    setFillColor(doc, stroke);
-    doc.triangle(
-      tipX,
-      tipY,
-      tipX - headSize,
-      tipY - headSize / 2,
-      tipX - headSize,
-      tipY + headSize / 2,
-      "F",
-    );
+  } else if (el.shape === "line" || el.shape === "arrow") {
+    const { startMarker, endMarker } = resolveMarkers(el, s);
+    const waypoints = s.waypoints;
+    const hasWaypoints = waypoints && waypoints.length >= 2;
+
+    if (hasWaypoints) {
+      // Draw line segments between consecutive waypoints
+      for (let i = 0; i < waypoints.length - 1; i++) {
+        const p1 = waypoints[i]!;
+        const p2 = waypoints[i + 1]!;
+        doc.line(x + p1.x, y + p1.y, x + p2.x, y + p2.y);
+      }
+      // Markers at first/last waypoint
+      const first = waypoints[0]!;
+      const last = waypoints[waypoints.length - 1]!;
+      const headSize = 10;
+      if (endMarker === "arrow") {
+        setFillColor(doc, stroke);
+        // Compute direction from second-to-last to last
+        const prev = waypoints[waypoints.length - 2]!;
+        const angle = Math.atan2(last.y - prev.y, last.x - prev.x);
+        const tipX = x + last.x;
+        const tipY = y + last.y;
+        const cos = Math.cos(angle);
+        const sin = Math.sin(angle);
+        doc.triangle(
+          tipX, tipY,
+          tipX - headSize * cos + (headSize / 2) * sin,
+          tipY - headSize * sin - (headSize / 2) * cos,
+          tipX - headSize * cos - (headSize / 2) * sin,
+          tipY - headSize * sin + (headSize / 2) * cos,
+          "F",
+        );
+      } else if (endMarker === "circle") {
+        setFillColor(doc, stroke);
+        doc.circle(x + last.x, y + last.y, 4, "F");
+      }
+      if (startMarker === "arrow") {
+        setFillColor(doc, stroke);
+        const next = waypoints[1]!;
+        const angle = Math.atan2(first.y - next.y, first.x - next.x);
+        const tipX = x + first.x;
+        const tipY = y + first.y;
+        const cos = Math.cos(angle);
+        const sin = Math.sin(angle);
+        doc.triangle(
+          tipX, tipY,
+          tipX - headSize * cos + (headSize / 2) * sin,
+          tipY - headSize * sin - (headSize / 2) * cos,
+          tipX - headSize * cos - (headSize / 2) * sin,
+          tipY - headSize * sin + (headSize / 2) * cos,
+          "F",
+        );
+      } else if (startMarker === "circle") {
+        setFillColor(doc, stroke);
+        doc.circle(x + first.x, y + first.y, 4, "F");
+      }
+    } else {
+      doc.line(x, y + h / 2, x + w, y + h / 2);
+      const headSize = 10;
+      // End marker
+      if (endMarker === "arrow") {
+        const tipX = x + w;
+        const tipY = y + h / 2;
+        setFillColor(doc, stroke);
+        doc.triangle(tipX, tipY, tipX - headSize, tipY - headSize / 2, tipX - headSize, tipY + headSize / 2, "F");
+      } else if (endMarker === "circle") {
+        setFillColor(doc, stroke);
+        doc.circle(x + w, y + h / 2, 4, "F");
+      }
+      // Start marker
+      if (startMarker === "arrow") {
+        const tipX = x;
+        const tipY = y + h / 2;
+        setFillColor(doc, stroke);
+        doc.triangle(tipX, tipY, tipX + headSize, tipY - headSize / 2, tipX + headSize, tipY + headSize / 2, "F");
+      } else if (startMarker === "circle") {
+        setFillColor(doc, stroke);
+        doc.circle(x, y + h / 2, 4, "F");
+      }
+    }
   }
 
   if (fOp < 1 || sOp < 1) {

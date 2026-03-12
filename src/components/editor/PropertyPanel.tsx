@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useDeckStore } from "@/stores/deckStore";
-import type { Slide, SlideElement, TikZElement, MermaidElement, TableElement, CustomElement, Scene3DElement, ImageElement, VideoElement, CropRect } from "@/types/deck";
+import type { Slide, SlideElement, TikZElement, MermaidElement, TableElement, CustomElement, Scene3DElement, ImageElement, VideoElement, ShapeElement, CropRect } from "@/types/deck";
 import { useAdapter } from "@/contexts/AdapterContext";
 import { AnimationEditor } from "./AnimationEditor";
 import { CommentList } from "./CommentList";
@@ -345,6 +345,7 @@ function SlidePropertiesPanel({
 }
 
 const TRANSITION_TYPE_OPTIONS = ["fade", "slide", "morph", "none"] as const;
+const MARKER_OPTIONS = ["none", "arrow", "circle"] as const;
 
 function ElementStyleEditor({
   element,
@@ -393,6 +394,27 @@ function ElementStyleEditor({
             <NumberField label="Stroke Opacity" value={element.style?.strokeOpacity ?? 1} onChange={(v) => patchStyle("strokeOpacity", v)} min={0} max={1} step={0.05} />
             <NumberField label="Stroke Width" value={element.style?.strokeWidth} onChange={(v) => patchStyle("strokeWidth", v)} min={0} max={20} />
             <NumberField label="Border Radius" value={element.style?.borderRadius ?? 0} onChange={(v) => patchStyle("borderRadius", v)} min={0} max={100} />
+            {(element.shape === "line" || element.shape === "arrow") && (
+              <>
+                <SelectField
+                  label="Start Marker"
+                  value={element.style?.markerStart ?? "none"}
+                  options={MARKER_OPTIONS}
+                  onChange={(v) => patchStyle("markerStart", v)}
+                />
+                <SelectField
+                  label="End Marker"
+                  value={element.style?.markerEnd ?? (element.shape === "arrow" ? "arrow" : "none")}
+                  options={MARKER_OPTIONS}
+                  onChange={(v) => patchStyle("markerEnd", v)}
+                />
+                <WaypointControls
+                  element={element as ShapeElement}
+                  slideId={slideId}
+                  updateElement={updateElement}
+                />
+              </>
+            )}
           </>
         )}
         {element.type === "image" && (
@@ -1103,6 +1125,110 @@ function TrimActions({
           {fmt(trimStart)} ~ {fmt(trimEnd)} / {fmt(duration)} ({fmt(trimDuration)})
         </div>
       )}
+    </div>
+  );
+}
+
+function WaypointControls({
+  element,
+  slideId,
+  updateElement,
+}: {
+  element: ShapeElement;
+  slideId: string;
+  updateElement: (slideId: string, elementId: string, patch: Partial<SlideElement>) => void;
+}) {
+  const waypoints = element.style?.waypoints;
+  const { w, h } = element.size;
+
+  const setWaypoints = (pts: { x: number; y: number }[] | undefined) => {
+    const { waypoints: _, ...rest } = element.style ?? {};
+    updateElement(slideId, element.id, {
+      style: pts ? { ...rest, waypoints: pts } : rest,
+    } as Partial<SlideElement>);
+  };
+
+  if (!waypoints || waypoints.length < 2) {
+    return (
+      <div>
+        <FieldLabel>Waypoints</FieldLabel>
+        <button
+          onClick={() => setWaypoints([{ x: 0, y: Math.round(h / 2) }, { x: w, y: Math.round(h / 2) }])}
+          className="w-full px-3 py-1.5 text-xs font-medium rounded bg-zinc-800 text-zinc-300 hover:text-zinc-100 border border-zinc-700 hover:border-zinc-500 transition-colors"
+        >
+          Add Waypoints
+        </button>
+      </div>
+    );
+  }
+
+  const updatePoint = (index: number, axis: "x" | "y", value: number | undefined) => {
+    if (value === undefined) return;
+    const pts = waypoints.map((p, i) =>
+      i === index ? { ...p, [axis]: value } : { ...p },
+    );
+    setWaypoints(pts);
+  };
+
+  const addPoint = () => {
+    const last = waypoints[waypoints.length - 1]!;
+    const prev = waypoints[waypoints.length - 2]!;
+    const mid = {
+      x: Math.round((prev.x + last.x) / 2),
+      y: Math.round((prev.y + last.y) / 2),
+    };
+    const pts = [...waypoints.slice(0, -1), mid, last];
+    setWaypoints(pts);
+  };
+
+  const removePoint = (index: number) => {
+    if (waypoints.length <= 2) return;
+    setWaypoints(waypoints.filter((_, i) => i !== index));
+  };
+
+  return (
+    <div>
+      <FieldLabel>Waypoints</FieldLabel>
+      <div className="space-y-1.5">
+        {waypoints.map((pt, i) => (
+          <div key={i} className="flex items-center gap-1">
+            <span className="text-zinc-500 text-[10px] w-3 shrink-0">{i + 1}</span>
+            <input
+              type="number"
+              className="flex-1 bg-zinc-800 text-zinc-200 rounded px-1.5 py-0.5 text-xs font-mono border border-zinc-700 focus:border-blue-500 focus:outline-none w-0"
+              value={pt.x}
+              onChange={(e) => updatePoint(i, "x", parseInt(e.target.value, 10))}
+            />
+            <input
+              type="number"
+              className="flex-1 bg-zinc-800 text-zinc-200 rounded px-1.5 py-0.5 text-xs font-mono border border-zinc-700 focus:border-blue-500 focus:outline-none w-0"
+              value={pt.y}
+              onChange={(e) => updatePoint(i, "y", parseInt(e.target.value, 10))}
+            />
+            <button
+              onClick={() => removePoint(i)}
+              disabled={waypoints.length <= 2}
+              className="text-zinc-500 hover:text-red-400 disabled:opacity-30 disabled:cursor-not-allowed text-xs px-1"
+            >
+              x
+            </button>
+          </div>
+        ))}
+      </div>
+      <div className="flex gap-1 mt-1.5">
+        <button
+          onClick={addPoint}
+          className="flex-1 px-2 py-1 text-xs rounded bg-zinc-800 text-zinc-400 hover:text-zinc-200 border border-zinc-700 hover:border-zinc-500 transition-colors"
+        >
+          + Point
+        </button>
+        <button
+          onClick={() => setWaypoints(undefined)}
+          className="flex-1 px-2 py-1 text-xs rounded bg-zinc-800 text-zinc-400 hover:text-zinc-200 border border-zinc-700 hover:border-zinc-500 transition-colors"
+        >
+          Clear
+        </button>
+      </div>
     </div>
   );
 }

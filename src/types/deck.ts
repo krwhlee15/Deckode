@@ -67,6 +67,8 @@ export interface CodeStyle {
 
 export type ShapeKind = "rectangle" | "ellipse" | "line" | "arrow";
 
+export type MarkerType = "none" | "arrow" | "circle";
+
 export interface ShapeStyle {
   fill?: string;
   stroke?: string;
@@ -75,6 +77,10 @@ export interface ShapeStyle {
   opacity?: number;
   fillOpacity?: number;
   strokeOpacity?: number;
+  markerStart?: MarkerType;
+  markerEnd?: MarkerType;
+  path?: string;
+  waypoints?: { x: number; y: number }[];
 }
 
 export interface VideoStyle {

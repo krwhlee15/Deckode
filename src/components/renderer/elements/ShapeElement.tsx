@@ -1,5 +1,6 @@
 import type { ShapeElement as ShapeElementType, ShapeStyle } from "@/types/deck";
 import { useElementStyle } from "@/contexts/ThemeContext";
+import { resolveMarkers } from "@/utils/lineMarkers";
 
 interface Props {
   element: ShapeElementType;
@@ -54,36 +55,114 @@ export function ShapeElementRenderer({ element }: Props) {
   }
 
   if (element.shape === "line" || element.shape === "arrow") {
+    const { startMarker, endMarker } = resolveMarkers(element, style);
+    const strokeColor = style.stroke ?? "#ffffff";
+    const sw = style.strokeWidth ?? 2;
+    const pathD = style.path;
+    const waypoints = style.waypoints;
+    const hasWaypoints = waypoints && waypoints.length >= 2;
+
+    const markerDefs: React.ReactNode[] = [];
+
+    const addArrowMarker = (id: string, position: "start" | "end") => {
+      markerDefs.push(
+        <marker
+          key={id}
+          id={id}
+          markerWidth="10"
+          markerHeight="7"
+          refX={position === "start" ? 1 : 9}
+          refY="3.5"
+          orient={position === "start" ? "auto-start-reverse" : "auto"}
+        >
+          <polygon
+            points="0 0, 10 3.5, 0 7"
+            fill={strokeColor}
+            fillOpacity={sOp}
+          />
+        </marker>,
+      );
+    };
+
+    const addCircleMarker = (id: string, position: "start" | "end") => {
+      markerDefs.push(
+        <marker
+          key={id}
+          id={id}
+          markerWidth="8"
+          markerHeight="8"
+          refX={position === "start" ? 2 : 6}
+          refY="4"
+          orient="auto"
+        >
+          <circle
+            cx="4"
+            cy="4"
+            r="3"
+            fill={strokeColor}
+            fillOpacity={sOp}
+          />
+        </marker>,
+      );
+    };
+
+    let markerStartAttr: string | undefined;
+    let markerEndAttr: string | undefined;
+
+    if (startMarker !== "none") {
+      const id = `marker-start-${element.id}`;
+      if (startMarker === "arrow") addArrowMarker(id, "start");
+      else addCircleMarker(id, "start");
+      markerStartAttr = `url(#${id})`;
+    }
+    if (endMarker !== "none") {
+      const id = `marker-end-${element.id}`;
+      if (endMarker === "arrow") addArrowMarker(id, "end");
+      else addCircleMarker(id, "end");
+      markerEndAttr = `url(#${id})`;
+    }
+
     return (
-      <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} style={{ opacity: style.opacity ?? 1 }}>
-        {element.shape === "arrow" && (
-          <defs>
-            <marker
-              id={`arrow-${element.id}`}
-              markerWidth="10"
-              markerHeight="7"
-              refX="9"
-              refY="3.5"
-              orient="auto"
-            >
-              <polygon
-                points="0 0, 10 3.5, 0 7"
-                fill={style.stroke ?? "#ffffff"}
-                fillOpacity={sOp}
-              />
-            </marker>
-          </defs>
+      <svg
+        width={w}
+        height={h}
+        viewBox={`0 0 ${w} ${h}`}
+        style={{ opacity: style.opacity ?? 1, overflow: "visible" }}
+      >
+        {markerDefs.length > 0 && <defs>{markerDefs}</defs>}
+        {hasWaypoints ? (
+          <polyline
+            points={waypoints.map((p) => `${p.x},${p.y}`).join(" ")}
+            fill="none"
+            stroke={strokeColor}
+            strokeOpacity={sOp}
+            strokeWidth={sw}
+            markerStart={markerStartAttr}
+            markerEnd={markerEndAttr}
+          />
+        ) : pathD ? (
+          <path
+            d={pathD}
+            fill="none"
+            stroke={strokeColor}
+            strokeOpacity={sOp}
+            strokeWidth={sw}
+            markerStart={markerStartAttr}
+            markerEnd={markerEndAttr}
+          />
+        ) : (
+          <line
+            x1={0}
+            y1={h / 2}
+            x2={w}
+            y2={h / 2}
+            stroke={strokeColor}
+            strokeOpacity={sOp}
+            strokeWidth={sw}
+            markerStart={markerStartAttr}
+            markerEnd={markerEndAttr}
+          />
         )}
-        <line
-          x1={0}
-          y1={h / 2}
-          x2={w}
-          y2={h / 2}
-          stroke={style.stroke ?? "#ffffff"}
-          strokeOpacity={sOp}
-          strokeWidth={style.strokeWidth ?? 2}
-          markerEnd={element.shape === "arrow" ? `url(#arrow-${element.id})` : undefined}
-        />
       </svg>
     );
   }

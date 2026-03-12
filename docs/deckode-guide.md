@@ -379,8 +379,12 @@ Renders a geometric shape.
 | `strokeWidth` | number | `1` | Stroke width in px |
 | `borderRadius` | number | `0` | Corner radius (rectangle only) |
 | `opacity` | number | `1` | Opacity (0-1) |
+| `markerStart` | `"none"` \| `"arrow"` \| `"circle"` | `"none"` | Start marker (line/arrow only) |
+| `markerEnd` | `"none"` \| `"arrow"` \| `"circle"` | `"none"` (`"arrow"` for `shape: "arrow"`) | End marker (line/arrow only) |
+| `path` | string | — | SVG path `d` attribute for custom line routing (line/arrow only). When absent, line is straight horizontal. |
+| `waypoints` | `{x,y}[]` | — | Polyline waypoints in element-local coords (line/arrow only). 2+ points renders a polyline. Takes priority over `path`. |
 
-For `"line"` and `"arrow"`: `position` is the start point. The line extends horizontally by `size.w` pixels. `size.h` is ignored (set to a small value like `4` for the click target).
+For `"line"` and `"arrow"`: `position` is the start point. The line extends horizontally by `size.w` pixels. `size.h` is ignored (set to a small value like `4` for the click target). The `"arrow"` shape is shorthand for `"line"` with `markerEnd: "arrow"`. Use `markerStart`/`markerEnd` for fine-grained control.
 
 **Line example** (horizontal divider):
 ```json
@@ -405,6 +409,61 @@ For `"line"` and `"arrow"`: `position` is the start point. The line extends hori
   "style": { "stroke": "#3b82f6", "strokeWidth": 3 }
 }
 ```
+
+**Double-headed arrow**:
+```json
+{
+  "id": "bidirectional",
+  "type": "shape",
+  "shape": "line",
+  "position": { "x": 100, "y": 270 },
+  "size": { "w": 300, "h": 4 },
+  "style": { "stroke": "#8b5cf6", "strokeWidth": 2, "markerStart": "arrow", "markerEnd": "arrow" }
+}
+```
+
+**Circle-ended connector**:
+```json
+{
+  "id": "connector",
+  "type": "shape",
+  "shape": "line",
+  "position": { "x": 100, "y": 300 },
+  "size": { "w": 200, "h": 4 },
+  "style": { "stroke": "#06b6d4", "strokeWidth": 2, "markerStart": "circle", "markerEnd": "arrow" }
+}
+```
+
+**Curved path** (SVG `d` attribute):
+```json
+{
+  "id": "curve",
+  "type": "shape",
+  "shape": "line",
+  "position": { "x": 100, "y": 100 },
+  "size": { "w": 300, "h": 150 },
+  "style": { "stroke": "#f59e0b", "strokeWidth": 2, "markerEnd": "arrow", "path": "M 0 75 C 100 0, 200 150, 300 75" }
+}
+```
+
+**Polyline waypoints** (routed connector):
+```json
+{
+  "id": "routed",
+  "type": "shape",
+  "shape": "arrow",
+  "position": { "x": 100, "y": 100 },
+  "size": { "w": 300, "h": 200 },
+  "style": {
+    "stroke": "#10b981", "strokeWidth": 2,
+    "waypoints": [{"x": 0, "y": 100}, {"x": 150, "y": 100}, {"x": 150, "y": 0}, {"x": 300, "y": 0}]
+  }
+}
+```
+
+Waypoints are in element-local coordinates (relative to `position`). They can extend beyond the element's bounding box. In the editor, select a line/arrow and use the Property Panel to add waypoints, then drag the green handles on the canvas. Rendering priority: `waypoints` (2+ points) > `path` > straight line.
+
+**Export limitations**: The `path` and `waypoints` fields are fully rendered in the editor and HTML-based PDF export. Native PDF export draws waypoint line segments. PPTX export falls back to a straight line between first and last waypoint.
 
 ### `"tikz"`
 
@@ -1229,7 +1288,7 @@ Each key in the theme object corresponds to an element type and accepts the same
 | `theme.slide.background` | `color`, `image` | `color: "#0f172a"` |
 | `theme.text` | `fontFamily`, `fontSize`, `color`, `textAlign`, `lineHeight`, `verticalAlign` | `fontFamily: "Inter"`, `fontSize: 24`, `color: "#ffffff"`, `lineHeight: 1.5` |
 | `theme.code` | `theme`, `fontSize`, `lineNumbers`, `borderRadius` | `theme: "github-dark"`, `fontSize: 16`, `borderRadius: 8` |
-| `theme.shape` | `fill`, `stroke`, `strokeWidth`, `borderRadius`, `opacity` | `stroke: "#ffffff"`, `strokeWidth: 1` |
+| `theme.shape` | `fill`, `stroke`, `strokeWidth`, `borderRadius`, `opacity`, `markerStart`, `markerEnd`, `path`, `waypoints` | `stroke: "#ffffff"`, `strokeWidth: 1` |
 | `theme.image` | `objectFit`, `borderRadius`, `opacity` | `objectFit: "contain"` |
 | `theme.video` | `objectFit`, `borderRadius` | `objectFit: "contain"` |
 | `theme.tikz` | `backgroundColor`, `borderRadius` | `backgroundColor: "#1e1e2e"` |

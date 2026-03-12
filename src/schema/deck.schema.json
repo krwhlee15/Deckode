@@ -76,7 +76,22 @@
             "borderRadius": { "type": "number" },
             "opacity": { "type": "number" },
             "fillOpacity": { "type": "number" },
-            "strokeOpacity": { "type": "number" }
+            "strokeOpacity": { "type": "number" },
+            "markerStart": { "type": "string", "enum": ["none", "arrow", "circle"] },
+            "markerEnd": { "type": "string", "enum": ["none", "arrow", "circle"] },
+            "path": { "type": "string", "description": "SVG path d attribute for custom line routing" },
+            "waypoints": {
+              "type": "array",
+              "description": "Polyline waypoints in element-local coordinates (line/arrow only). 2+ points required.",
+              "items": {
+                "type": "object",
+                "required": ["x", "y"],
+                "properties": {
+                  "x": { "type": "number" },
+                  "y": { "type": "number" }
+                }
+              }
+            }
           }
         },
         "image": {

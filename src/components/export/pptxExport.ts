@@ -34,6 +34,8 @@ import {
   DEFAULT_CODE_THEME,
   DEFAULT_TABLE_SIZE,
 } from "@/utils/exportUtils";
+import type { MarkerType } from "@/types/deck";
+import { resolveMarkers } from "@/utils/lineMarkers";
 import type { ParsedLine } from "@/utils/markdownParser";
 import { parseMarkdownLines } from "@/utils/markdownParser";
 import { parseShikiHtml } from "@/utils/shikiTokenParser";
@@ -557,17 +559,35 @@ function addShape(
       rotate,
     });
   } else if (el.shape === "line" || el.shape === "arrow") {
-    const isLineOrArrow = true;
-    const sw = s.strokeWidth ?? (isLineOrArrow ? 2 : 1);
+    const sw = s.strokeWidth ?? 2;
+    const { startMarker, endMarker } = resolveMarkers(el, s);
+
+    type PptxArrowType = "none" | "arrow" | "triangle" | "diamond" | "oval" | "stealth";
+    const mapMarkerToPptx = (m: MarkerType): PptxArrowType | undefined => {
+      if (m === "arrow") return "triangle";
+      if (m === "circle") return "oval";
+      return undefined;
+    };
+
+    // PPTX only supports straight lines — use first/last waypoint if available
+    const waypoints = s.waypoints;
+    const hasWaypoints = waypoints && waypoints.length >= 2;
+    const lineX = hasWaypoints ? (el.position.x + waypoints[0]!.x) * PX_TO_IN_X : x;
+    const lineY = hasWaypoints ? (el.position.y + waypoints[0]!.y) * PX_TO_IN_Y : y;
+    const lastPt = hasWaypoints ? waypoints[waypoints.length - 1]! : null;
+    const lineW = hasWaypoints ? (el.position.x + lastPt!.x) * PX_TO_IN_X - lineX : w;
+    const lineH = hasWaypoints ? (el.position.y + lastPt!.y) * PX_TO_IN_Y - lineY : 0;
+
     slide.addShape("line" as PptxGenJS.ShapeType, {
-      x,
-      y,
-      w,
-      h: 0,
+      x: lineX,
+      y: lineY,
+      w: lineW,
+      h: lineH,
       line: {
         color: strokeHex ?? "FFFFFF",
         width: sw,
-        endArrowType: el.shape === "arrow" ? "triangle" : undefined,
+        beginArrowType: mapMarkerToPptx(startMarker),
+        endArrowType: mapMarkerToPptx(endMarker),
       },
       rotate,
     });

@@ -29,7 +29,7 @@ const ELEMENT_PRESETS: { label: string; create: () => SlideElement }[] = [
     }),
   },
   {
-    label: "Shape",
+    label: "Rectangle",
     create: () => ({
       id: nextElementId(),
       type: "shape" as const,
@@ -37,6 +37,39 @@ const ELEMENT_PRESETS: { label: string; create: () => SlideElement }[] = [
       position: { x: 200, y: 200 },
       size: { w: 200, h: 120 },
       style: { fill: "#3b82f6", borderRadius: 8 },
+    }),
+  },
+  {
+    label: "Ellipse",
+    create: () => ({
+      id: nextElementId(),
+      type: "shape" as const,
+      shape: "ellipse" as const,
+      position: { x: 200, y: 200 },
+      size: { w: 180, h: 120 },
+      style: { stroke: "#8b5cf6", strokeWidth: 2 },
+    }),
+  },
+  {
+    label: "Line",
+    create: () => ({
+      id: nextElementId(),
+      type: "shape" as const,
+      shape: "line" as const,
+      position: { x: 100, y: 270 },
+      size: { w: 300, h: 4 },
+      style: { stroke: "#ffffff", strokeWidth: 2 },
+    }),
+  },
+  {
+    label: "Arrow",
+    create: () => ({
+      id: nextElementId(),
+      type: "shape" as const,
+      shape: "arrow" as const,
+      position: { x: 100, y: 270 },
+      size: { w: 300, h: 4 },
+      style: { stroke: "#ffffff", strokeWidth: 2 },
     }),
   },
   {

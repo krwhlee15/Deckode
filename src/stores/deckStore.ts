@@ -186,6 +186,7 @@ export const useDeckStore = create<DeckState>()(
           const { deck, currentProject } = get();
           if (!deck || !currentProject || !_adapter) return;
           if (_adapter.mode === "readonly") return;
+          if (get().savePaused) return;
 
           // If a save is already in-flight, mark pending and let it chain.
           if (_activeSave) {

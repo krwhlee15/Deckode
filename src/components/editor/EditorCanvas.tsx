@@ -191,6 +191,20 @@ export function EditorCanvas() {
               let ey1 = el.position.y;
               let ex2 = ex1 + el.size.w;
               let ey2 = ey1 + el.size.h;
+              // For cropped images/videos, use visible crop bounds
+              if (el.type === "image" || el.type === "video") {
+                const crop = el.type === "image"
+                  ? (el as ImageElement).style?.crop
+                  : (el as VideoElement).style?.crop;
+                if (crop && (crop.top || crop.right || crop.bottom || crop.left)) {
+                  const w = el.size.w;
+                  const h = el.size.h;
+                  ex1 = el.position.x + crop.left * w;
+                  ey1 = el.position.y + crop.top * h;
+                  ex2 = el.position.x + w - crop.right * w;
+                  ey2 = el.position.y + h - crop.bottom * h;
+                }
+              }
               // For line/arrow with waypoints, use waypoint-derived bounds
               if (el.type === "shape") {
                 const shape = el as ShapeElement;

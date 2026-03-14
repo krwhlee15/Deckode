@@ -81,7 +81,7 @@ export function EditorCanvas() {
     return () => window.removeEventListener("resize", updateScale);
   }, [updateScale]);
 
-  // Clipboard paste: add image from Ctrl+V
+  // Clipboard paste: add image/video/elements from Ctrl+V
   useEffect(() => {
     const handlePaste = async (e: ClipboardEvent) => {
       if (!slide) return;
@@ -96,32 +96,74 @@ export function EditorCanvas() {
         return;
       }
 
+      // 1. Try media files (images, videos, PDFs)
       const file = Array.from(e.clipboardData?.files ?? []).find((f) =>
-        f.type.startsWith("image/") || f.type === "application/pdf",
+        f.type.startsWith("image/") || f.type.startsWith("video/") || f.type === "application/pdf",
       );
-      if (!file) return;
+      if (file) {
+        e.preventDefault();
+        const ext = file.name.split(".").pop() || "png";
+        const renamed = new File([file], `paste-${Date.now()}.${ext}`, {
+          type: file.type,
+        });
+        const url = await adapter.uploadAsset(renamed);
 
-      e.preventDefault();
+        if (file.type.startsWith("video/")) {
+          const id = crypto.randomUUID();
+          const element: VideoElement = {
+            id,
+            type: "video",
+            src: url,
+            autoplay: false,
+            controls: true,
+            position: { x: 230, y: 120 },
+            size: { w: 500, h: 300 },
+          };
+          addElement(slide.id, element);
+          selectElement(id);
+        } else {
+          const isPdf = file.type === "application/pdf";
+          const id = crypto.randomUUID();
+          const element: ImageElement = {
+            id,
+            type: "image",
+            src: url,
+            position: isPdf ? { x: 280, y: 120 } : { x: 330, y: 170 },
+            size: isPdf ? { w: 400, h: 300 } : { w: 300, h: 200 },
+          };
+          addElement(slide.id, element);
+          selectElement(id);
+        }
+        return;
+      }
 
-      // Clipboard files often have generic names like "image.png"
-      const ext = file.name.split(".").pop() || "png";
-      const renamed = new File([file], `paste-${Date.now()}.${ext}`, {
-        type: file.type,
-      });
-
-      const url = await adapter.uploadAsset(renamed);
-
-      const isPdf = file.type === "application/pdf";
-      const id = crypto.randomUUID();
-      const element: ImageElement = {
-        id,
-        type: "image",
-        src: url,
-        position: isPdf ? { x: 280, y: 120 } : { x: 330, y: 170 },
-        size: isPdf ? { w: 400, h: 300 } : { w: 300, h: 200 },
-      };
-      addElement(slide.id, element);
-      selectElement(id);
+      // 2. Try deckode elements from system clipboard (cross-instance paste)
+      const text = e.clipboardData?.getData("text/plain");
+      if (text) {
+        try {
+          const parsed = JSON.parse(text);
+          if (parsed?.__deckode && Array.isArray(parsed.elements)) {
+            e.preventDefault();
+            const { nextElementId } = await import("@/utils/id");
+            const newIds: string[] = [];
+            for (const original of parsed.elements as SlideElement[]) {
+              const clone: SlideElement = JSON.parse(JSON.stringify(original));
+              clone.id = nextElementId();
+              clone.position = { x: original.position.x + 20, y: original.position.y + 20 };
+              delete clone.groupId;
+              addElement(slide.id, clone);
+              newIds.push(clone.id);
+            }
+            selectElement(newIds[0]!);
+            for (let i = 1; i < newIds.length; i++) {
+              selectElement(newIds[i]!, "add");
+            }
+            return;
+          }
+        } catch {
+          // Not JSON, ignore
+        }
+      }
     };
 
     document.addEventListener("paste", handlePaste);

@@ -186,6 +186,10 @@ export function EditorLayout() {
             if (elements.length > 0) {
               elementClipboard = JSON.parse(JSON.stringify(elements));
               slideClipboard = null;
+              // Write to system clipboard for cross-instance paste
+              navigator.clipboard.writeText(
+                JSON.stringify({ __deckode: true, elements }),
+              ).catch(() => {});
               e.preventDefault();
             }
           } else if (slide) {

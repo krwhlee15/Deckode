@@ -8,11 +8,7 @@ import { CropOverlay } from "./CropOverlay";
 import { WaypointOverlay } from "./WaypointOverlay";
 import type { ShapeElement as ShapeElementType } from "@/types/deck";
 
-// Module-level clipboard for component references (not in store — not undoable)
-let componentClipboard: string | null = null;
-
-export function getComponentClipboard() { return componentClipboard; }
-export function setComponentClipboard(id: string | null) { componentClipboard = id; }
+import { setComponentClipboard } from "./clipboard";
 
 function getGroupBounds(elements: SlideElement[]) {
   let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;

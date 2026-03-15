@@ -1,9 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useDeckStore } from "@/stores/deckStore";
-import type { Slide, SlideElement } from "@/types/deck";
+import type { SlideElement } from "@/types/deck";
 import { nextElementId, cloneSlide } from "@/utils/id";
 import type { ReferenceElement, SharedComponent } from "@/types/deck";
-import { getComponentClipboard, setComponentClipboard } from "./SelectionOverlay";
 import { findUndoChanges } from "@/utils/deckDiff";
 import { skipNextRestore } from "@/utils/handleStore";
 import { SlideList } from "./SlideList";
@@ -22,9 +21,11 @@ import { exportToPptx } from "@/components/export/pptxExport";
 import { useAdapter } from "@/contexts/AdapterContext";
 import { useTikzAutoRender } from "@/hooks/useTikzAutoRender";
 
-// Module-level clipboards (not in store — not undoable)
-let elementClipboard: SlideElement[] | null = null;
-let slideClipboard: Slide | null = null;
+import {
+  elementClipboard, setElementClipboard,
+  slideClipboard, setSlideClipboard,
+  componentClipboard, setComponentClipboard,
+} from "./clipboard";
 
 function performUndoRedo(direction: "undo" | "redo") {
   const temporal = useDeckStore.temporal.getState();
@@ -191,8 +192,8 @@ export function EditorLayout() {
               .map(id => slide.elements.find(el => el.id === id))
               .filter((el): el is SlideElement => el !== undefined);
             if (elements.length > 0) {
-              elementClipboard = JSON.parse(JSON.stringify(elements));
-              slideClipboard = null;
+              setElementClipboard(JSON.parse(JSON.stringify(elements)));
+              setSlideClipboard(null);
               // Collect referenced components for cross-instance paste
               const components: Record<string, SharedComponent> = {};
               for (const el of elements) {
@@ -210,8 +211,8 @@ export function EditorLayout() {
             }
           } else if (slide) {
             // No elements selected → copy current slide
-            slideClipboard = JSON.parse(JSON.stringify(slide));
-            elementClipboard = null;
+            setSlideClipboard(JSON.parse(JSON.stringify(slide)));
+            setElementClipboard(null);
             e.preventDefault();
           }
         }
@@ -227,7 +228,7 @@ export function EditorLayout() {
               .map(id => slide.elements.find(el => el.id === id))
               .filter((el): el is SlideElement => el !== undefined);
             if (elements.length > 0) {
-              elementClipboard = JSON.parse(JSON.stringify(elements));
+              setElementClipboard(JSON.parse(JSON.stringify(elements)));
               for (const elId of [...selectedElementIds]) {
                 deleteElement(slide.id, elId);
               }
@@ -240,13 +241,12 @@ export function EditorLayout() {
       // Paste: Ctrl+V (elements, component reference, or slide from internal clipboard)
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.code === "KeyV") {
         // Paste component reference from "Copy Reference"
-        const compClip = getComponentClipboard();
-        if (compClip) {
+        if (componentClipboard) {
           const { deck, currentSlideIndex, pasteReference } = useDeckStore.getState();
           if (deck) {
             const slide = deck.slides[currentSlideIndex];
-            if (slide && deck.components?.[compClip]) {
-              pasteReference(slide.id, compClip, { x: 100, y: 100 });
+            if (slide && deck.components?.[componentClipboard]) {
+              pasteReference(slide.id, componentClipboard, { x: 100, y: 100 });
               setComponentClipboard(null);
               e.preventDefault();
               return;

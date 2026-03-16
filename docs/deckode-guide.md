@@ -104,8 +104,8 @@ A Deckode presentation is a single `deck.json` file (with optional `$ref` splits
     "text": { "fontFamily": "Inter, system-ui, sans-serif", "fontSize": 24, "color": "#ffffff" },
     "code": { "theme": "github-dark", "fontSize": 16 },
     "shape": { "stroke": "#ffffff", "strokeWidth": 1 },
-    "image": { "objectFit": "contain" },
-    "video": { "objectFit": "contain" },
+    "image": { "objectFit": "fill" },
+    "video": { "objectFit": "fill" },
     "tikz": { "backgroundColor": "#1e1e2e" },
     "table": { "headerBackground": "#1e293b", "borderColor": "#334155" }
   },
@@ -333,7 +333,7 @@ Renders an image.
   "position": { "x": 500, "y": 100 },
   "size": { "w": 400, "h": 300 },
   "style": {
-    "objectFit": "contain",
+    "objectFit": "fill",
     "borderRadius": 8,
     "opacity": 1
   }
@@ -349,7 +349,7 @@ Renders an image.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `objectFit` | `"contain"` \| `"cover"` \| `"fill"` | `"contain"` | Image fit behavior |
+| `objectFit` | `"contain"` \| `"cover"` \| `"fill"` | `"fill"` | Image fit behavior. With `"fill"`, the image stretches to exactly fill the element boundary. Use "Reset ratio" in Property Panel to restore the original aspect ratio. |
 | `borderRadius` | number | `0` | Corner radius in px |
 | `opacity` | number | `1` | Opacity (0-1) |
 | `border` | string | none | CSS border (e.g., `"2px solid #fff"`) |
@@ -841,7 +841,7 @@ Renders a video player. Supports local MP4/WebM files, YouTube URLs, and Vimeo U
   "muted": false,
   "controls": true,
   "style": {
-    "objectFit": "contain",
+    "objectFit": "fill",
     "borderRadius": 8
   }
 }
@@ -859,7 +859,7 @@ Renders a video player. Supports local MP4/WebM files, YouTube URLs, and Vimeo U
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `objectFit` | `"contain"` \| `"cover"` \| `"fill"` | `"contain"` | Video fit behavior |
+| `objectFit` | `"contain"` \| `"cover"` \| `"fill"` | `"fill"` | Video fit behavior. With `"fill"`, the video stretches to exactly fill the element boundary. Use "Reset ratio" in Property Panel to restore the original aspect ratio. |
 | `borderRadius` | number | `0` | Corner radius in px |
 
 **Source URL handling**:
@@ -1359,8 +1359,8 @@ Each key in the theme object corresponds to an element type and accepts the same
 | `theme.text` | `fontFamily`, `fontSize`, `color`, `textAlign`, `lineHeight`, `verticalAlign` | `fontFamily: "Inter"`, `fontSize: 24`, `color: "#ffffff"`, `lineHeight: 1.5` |
 | `theme.code` | `theme`, `fontSize`, `lineNumbers`, `borderRadius` | `theme: "github-dark"`, `fontSize: 16`, `borderRadius: 8` |
 | `theme.shape` | `fill`, `stroke`, `strokeWidth`, `borderRadius`, `opacity`, `markerStart`, `markerEnd`, `path`, `waypoints` | `stroke: "#ffffff"`, `strokeWidth: 1` |
-| `theme.image` | `objectFit`, `borderRadius`, `opacity` | `objectFit: "contain"` |
-| `theme.video` | `objectFit`, `borderRadius` | `objectFit: "contain"` |
+| `theme.image` | `objectFit`, `borderRadius`, `opacity` | `objectFit: "fill"` |
+| `theme.video` | `objectFit`, `borderRadius` | `objectFit: "fill"` |
 | `theme.tikz` | `backgroundColor`, `borderRadius` | `backgroundColor: "#1e1e2e"` |
 | `theme.table` | `fontSize`, `color`, `headerBackground`, `headerColor`, `borderColor`, `striped`, `borderRadius` | `fontSize: 14`, `headerBackground: "#1e293b"` |
 

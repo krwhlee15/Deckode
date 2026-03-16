@@ -68,15 +68,21 @@ export function EditorLayout() {
   // Resizable panel widths
   const [leftWidth, setLeftWidth] = useState(170);
   const [rightWidth, setRightWidth] = useState(240);
+  const [bottomHeight, setBottomHeight] = useState(280);
+  const [notesExpanded, setNotesExpanded] = useState(false);
   const dragRef = useRef<{
-    side: "left" | "right";
+    side: "left" | "right" | "bottom";
     startX: number;
+    startY: number;
     startWidth: number;
+    startHeight: number;
   } | null>(null);
   const leftWidthRef = useRef(leftWidth);
   leftWidthRef.current = leftWidth;
   const rightWidthRef = useRef(rightWidth);
   rightWidthRef.current = rightWidth;
+  const bottomHeightRef = useRef(bottomHeight);
+  bottomHeightRef.current = bottomHeight;
 
   // Close PDF menu on click outside
   useEffect(() => {
@@ -93,12 +99,17 @@ export function EditorLayout() {
   useEffect(() => {
     const onMouseMove = (e: MouseEvent) => {
       if (!dragRef.current) return;
-      const { side, startX, startWidth } = dragRef.current;
-      const delta = e.clientX - startX;
-      if (side === "left") {
-        setLeftWidth(Math.max(120, Math.min(400, startWidth + delta)));
+      const { side, startX, startWidth, startY, startHeight } = dragRef.current;
+      if (side === "bottom") {
+        const delta = startY - e.clientY;
+        setBottomHeight(Math.max(100, Math.min(600, startHeight + delta)));
       } else {
-        setRightWidth(Math.max(180, Math.min(500, startWidth - delta)));
+        const delta = e.clientX - startX;
+        if (side === "left") {
+          setLeftWidth(Math.max(120, Math.min(400, startWidth + delta)));
+        } else {
+          setRightWidth(Math.max(180, Math.min(500, startWidth - delta)));
+        }
       }
     };
     const onMouseUp = () => {
@@ -116,15 +127,17 @@ export function EditorLayout() {
   }, []);
 
   const startDrag = useCallback(
-    (side: "left" | "right", e: React.MouseEvent) => {
+    (side: "left" | "right" | "bottom", e: React.MouseEvent) => {
       e.preventDefault();
       dragRef.current = {
         side,
         startX: e.clientX,
+        startY: e.clientY,
         startWidth:
           side === "left" ? leftWidthRef.current : rightWidthRef.current,
+        startHeight: bottomHeightRef.current,
       };
-      document.body.style.cursor = "col-resize";
+      document.body.style.cursor = side === "bottom" ? "row-resize" : "col-resize";
       document.body.style.userSelect = "none";
     },
     [],
@@ -580,13 +593,29 @@ export function EditorLayout() {
         <div className="flex-1 flex flex-col overflow-hidden">
           <EditorCanvas />
 
-          <NotesEditor />
-
-          {bottomPanel === "code" && (
-            <div className="h-[280px] border-t border-zinc-800 shrink-0">
-              <CodePanel />
-            </div>
+          {/* Bottom drag handle — visible when notes expanded or code panel open */}
+          {(notesExpanded || bottomPanel === "code") && (
+            <div
+              className="h-1 shrink-0 cursor-row-resize hover:bg-blue-500/40 active:bg-blue-500/40 transition-colors border-t border-zinc-800"
+              onMouseDown={(e) => startDrag("bottom", e)}
+            />
           )}
+
+          {/* Bottom area: notes + code panel */}
+          <div
+            style={(notesExpanded || bottomPanel === "code") ? { height: bottomHeight } : undefined}
+            className={`shrink-0 flex flex-col ${(notesExpanded || bottomPanel === "code") ? "overflow-hidden" : ""}`}
+          >
+            <NotesEditor
+              expanded={notesExpanded}
+              onToggle={() => setNotesExpanded((v) => !v)}
+            />
+            {bottomPanel === "code" && (
+              <div className="flex-1 min-h-0 border-t border-zinc-800">
+                <CodePanel />
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Right resize handle */}

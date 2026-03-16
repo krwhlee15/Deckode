@@ -83,7 +83,7 @@ export function VideoElementRenderer({ element, thumbnail, videoStep, editorMode
   const commonStyle: React.CSSProperties = {
     width: w,
     height: h,
-    objectFit: (style.objectFit ?? "contain") as React.CSSProperties["objectFit"],
+    objectFit: (style.objectFit ?? "fill") as React.CSSProperties["objectFit"],
     borderRadius: style.borderRadius ?? 0,
     clipPath,
   };

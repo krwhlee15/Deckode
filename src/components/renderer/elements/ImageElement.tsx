@@ -70,7 +70,7 @@ export function ImageElementRenderer({ element }: Props) {
       style={{
         width: element.size.w,
         height: element.size.h,
-        objectFit: (style.objectFit ?? "contain") as React.CSSProperties["objectFit"],
+        objectFit: (style.objectFit ?? "fill") as React.CSSProperties["objectFit"],
         borderRadius: style.borderRadius ?? 0,
         opacity: style.opacity ?? 1,
         border: style.border,

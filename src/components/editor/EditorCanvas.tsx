@@ -108,33 +108,75 @@ export function EditorCanvas() {
         const renamed = new File([file], `paste-${Date.now()}.${ext}`, {
           type: file.type,
         });
-        const url = await adapter.uploadAsset(renamed);
+        const storedUrl = await adapter.uploadAsset(renamed);
+        const slideId = slide.id;
+        const id = crypto.randomUUID();
+        // Use blob URL for dimension probing (storedUrl may be a relative path)
+        const probeUrl = URL.createObjectURL(file);
 
         if (file.type.startsWith("video/")) {
-          const id = crypto.randomUUID();
-          const element: VideoElement = {
-            id,
-            type: "video",
-            src: url,
-            autoplay: false,
-            controls: true,
-            position: { x: 230, y: 120 },
-            size: { w: 500, h: 300 },
+          const video = document.createElement("video");
+          video.onloadedmetadata = () => {
+            URL.revokeObjectURL(probeUrl);
+            const ratio = video.videoWidth / video.videoHeight;
+            const maxW = 560, maxH = 400;
+            let w: number, h: number;
+            if (ratio > maxW / maxH) {
+              w = Math.min(video.videoWidth, maxW);
+              h = Math.round(w / ratio);
+            } else {
+              h = Math.min(video.videoHeight, maxH);
+              w = Math.round(h * ratio);
+            }
+            const element: VideoElement = {
+              id,
+              type: "video",
+              src: storedUrl,
+              autoplay: false,
+              controls: true,
+              position: { x: 230, y: 120 },
+              size: { w, h },
+            };
+            useDeckStore.getState().addElement(slideId, element);
+            useDeckStore.getState().selectElement(id);
           };
-          addElement(slide.id, element);
-          selectElement(id);
-        } else {
-          const isPdf = file.type === "application/pdf";
-          const id = crypto.randomUUID();
+          video.src = probeUrl;
+        } else if (file.type === "application/pdf") {
+          URL.revokeObjectURL(probeUrl);
           const element: ImageElement = {
             id,
             type: "image",
-            src: url,
-            position: isPdf ? { x: 280, y: 120 } : { x: 330, y: 170 },
-            size: isPdf ? { w: 400, h: 300 } : { w: 300, h: 200 },
+            src: storedUrl,
+            position: { x: 280, y: 120 },
+            size: { w: 400, h: 300 },
           };
-          addElement(slide.id, element);
+          addElement(slideId, element);
           selectElement(id);
+        } else {
+          const img = new Image();
+          img.onload = () => {
+            URL.revokeObjectURL(probeUrl);
+            const ratio = img.naturalWidth / img.naturalHeight;
+            const maxW = 400, maxH = 400;
+            let w: number, h: number;
+            if (ratio > maxW / maxH) {
+              w = Math.min(img.naturalWidth, maxW);
+              h = Math.round(w / ratio);
+            } else {
+              h = Math.min(img.naturalHeight, maxH);
+              w = Math.round(h * ratio);
+            }
+            const element: ImageElement = {
+              id,
+              type: "image",
+              src: storedUrl,
+              position: { x: 330, y: 170 },
+              size: { w, h },
+            };
+            useDeckStore.getState().addElement(slideId, element);
+            useDeckStore.getState().selectElement(id);
+          };
+          img.src = probeUrl;
         }
         return;
       }
@@ -318,7 +360,8 @@ export function EditorCanvas() {
     const isPdf = file.type === "application/pdf";
     if (!isImage && !isVideo && !isPdf) return;
 
-    const url = await adapter.uploadAsset(file);
+    const storedUrl = await adapter.uploadAsset(file);
+    const slideId = slide.id;
 
     const wrapper = canvasWrapperRef.current;
     assert(wrapper !== null, "canvasWrapperRef not attached");
@@ -326,34 +369,81 @@ export function EditorCanvas() {
     const rawX = (e.clientX - rect.left) / scale;
     const rawY = (e.clientY - rect.top) / scale;
 
-    const elW = isPdf ? 400 : isImage ? 300 : 560;
-    const elH = isPdf ? 300 : isImage ? 200 : 315;
-    const x = Math.max(0, Math.min(rawX - elW / 2, CANVAS_WIDTH - elW));
-    const y = Math.max(0, Math.min(rawY - elH / 2, CANVAS_HEIGHT - elH));
-
     const id = crypto.randomUUID();
 
-    if (isImage || isPdf) {
+    const createAtPosition = (elW: number, elH: number) => {
+      const x = Math.max(0, Math.min(rawX - elW / 2, CANVAS_WIDTH - elW));
+      const y = Math.max(0, Math.min(rawY - elH / 2, CANVAS_HEIGHT - elH));
+      return { x, y };
+    };
+
+    if (isPdf) {
+      const pos = createAtPosition(400, 300);
       const element: ImageElement = {
         id,
         type: "image",
-        src: url,
-        position: { x, y },
-        size: { w: elW, h: elH },
+        src: storedUrl,
+        position: pos,
+        size: { w: 400, h: 300 },
       };
-      addElement(slide.id, element);
+      addElement(slideId, element);
+      selectElement(id);
+    } else if (isVideo) {
+      const probeUrl = URL.createObjectURL(file);
+      const video = document.createElement("video");
+      video.onloadedmetadata = () => {
+        URL.revokeObjectURL(probeUrl);
+        const ratio = video.videoWidth / video.videoHeight;
+        const maxW = 560, maxH = 400;
+        let w: number, h: number;
+        if (ratio > maxW / maxH) {
+          w = Math.min(video.videoWidth, maxW);
+          h = Math.round(w / ratio);
+        } else {
+          h = Math.min(video.videoHeight, maxH);
+          w = Math.round(h * ratio);
+        }
+        const pos = createAtPosition(w, h);
+        const element: VideoElement = {
+          id,
+          type: "video",
+          src: storedUrl,
+          controls: true,
+          position: pos,
+          size: { w, h },
+        };
+        useDeckStore.getState().addElement(slideId, element);
+        useDeckStore.getState().selectElement(id);
+      };
+      video.src = probeUrl;
     } else {
-      const element: VideoElement = {
-        id,
-        type: "video",
-        src: url,
-        controls: true,
-        position: { x, y },
-        size: { w: elW, h: elH },
+      const probeUrl = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        URL.revokeObjectURL(probeUrl);
+        const ratio = img.naturalWidth / img.naturalHeight;
+        const maxW = 400, maxH = 400;
+        let w: number, h: number;
+        if (ratio > maxW / maxH) {
+          w = Math.min(img.naturalWidth, maxW);
+          h = Math.round(w / ratio);
+        } else {
+          h = Math.min(img.naturalHeight, maxH);
+          w = Math.round(h * ratio);
+        }
+        const pos = createAtPosition(w, h);
+        const element: ImageElement = {
+          id,
+          type: "image",
+          src: storedUrl,
+          position: pos,
+          size: { w, h },
+        };
+        useDeckStore.getState().addElement(slideId, element);
+        useDeckStore.getState().selectElement(id);
       };
-      addElement(slide.id, element);
+      img.src = probeUrl;
     }
-    selectElement(id);
   };
 
   return (

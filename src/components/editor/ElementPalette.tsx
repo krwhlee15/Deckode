@@ -80,7 +80,7 @@ const ELEMENT_PRESETS: { label: string; create: () => SlideElement }[] = [
       src: "",
       position: { x: 200, y: 150 },
       size: { w: 300, h: 200 },
-      style: { objectFit: "contain" as const },
+      style: { objectFit: "fill" as const },
     }),
   },
   {

@@ -99,6 +99,38 @@ export function PropertyPanel() {
           <NumberInput label="W" value={element.size.w} onChange={(v) => handleNumberChange("size.w", v)} />
           <NumberInput label="H" value={element.size.h} onChange={(v) => handleNumberChange("size.h", v)} />
         </div>
+        {(element.type === "image" || element.type === "video") && (
+          <button
+            className="mt-1.5 text-[10px] px-2 py-0.5 rounded bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors"
+            title="Reset element height to match the original aspect ratio"
+            onClick={() => {
+              const src = (element as ImageElement | VideoElement).src;
+              if (element.type === "image") {
+                const imgs = document.querySelectorAll<HTMLImageElement>(`img[src]`);
+                for (const img of imgs) {
+                  if (img.naturalWidth > 0 && img.src.includes(src)) {
+                    const ratio = img.naturalWidth / img.naturalHeight;
+                    const newH = Math.round(element.size.w / ratio);
+                    updateElement(slide.id, element.id, { size: { w: element.size.w, h: newH } } as Partial<SlideElement>);
+                    return;
+                  }
+                }
+              } else if (element.type === "video") {
+                const videos = document.querySelectorAll<HTMLVideoElement>(`video[src]`);
+                for (const vid of videos) {
+                  if (vid.videoWidth > 0 && vid.src.includes(src)) {
+                    const ratio = vid.videoWidth / vid.videoHeight;
+                    const newH = Math.round(element.size.w / ratio);
+                    updateElement(slide.id, element.id, { size: { w: element.size.w, h: newH } } as Partial<SlideElement>);
+                    return;
+                  }
+                }
+              }
+            }}
+          >
+            ↺ Reset ratio
+          </button>
+        )}
       </div>
 
       {/* Content (for text/code — not tikz/mermaid, which have their own editors) */}

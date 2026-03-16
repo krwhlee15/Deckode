@@ -181,42 +181,74 @@ export function EditorCanvas() {
         return;
       }
 
-      // 2. Try deckode elements from system clipboard (cross-instance paste)
+      // 2. Try deckode data from system clipboard
       const text = e.clipboardData?.getData("text/plain");
       if (text) {
         try {
           const parsed = JSON.parse(text);
-          if (parsed?.__deckode && Array.isArray(parsed.elements)) {
-            e.preventDefault();
-            const { nextElementId } = await import("@/utils/id");
+          if (parsed?.__deckode) {
+            // Element paste
+            if (Array.isArray(parsed.elements)) {
+              e.preventDefault();
+              const { nextElementId } = await import("@/utils/id");
 
-            // Merge referenced components into deck
-            if (parsed.components && typeof parsed.components === "object") {
-              const state = useDeckStore.getState();
-              if (state.deck) {
-                if (!state.deck.components) state.deck.components = {};
-                for (const [compId, comp] of Object.entries(parsed.components)) {
-                  if (!state.deck.components[compId]) {
-                    state.deck.components[compId] = comp as import("@/types/deck").SharedComponent;
+              // Merge referenced components into deck
+              if (parsed.components && typeof parsed.components === "object") {
+                const state = useDeckStore.getState();
+                if (state.deck) {
+                  if (!state.deck.components) state.deck.components = {};
+                  for (const [compId, comp] of Object.entries(parsed.components)) {
+                    if (!state.deck.components[compId]) {
+                      state.deck.components[compId] = comp as import("@/types/deck").SharedComponent;
+                    }
                   }
                 }
               }
+
+              const newIds: string[] = [];
+              for (const original of parsed.elements as SlideElement[]) {
+                const clone: SlideElement = JSON.parse(JSON.stringify(original));
+                clone.id = nextElementId();
+                clone.position = { x: original.position.x + 20, y: original.position.y + 20 };
+                delete clone.groupId;
+                addElement(slide.id, clone);
+                newIds.push(clone.id);
+              }
+              selectElement(newIds[0]!);
+              for (let i = 1; i < newIds.length; i++) {
+                selectElement(newIds[i]!, "add");
+              }
+              // Update clipboard positions for cascade offset on next paste
+              for (const el of parsed.elements as SlideElement[]) {
+                el.position = { x: el.position.x + 20, y: el.position.y + 20 };
+              }
+              navigator.clipboard.writeText(JSON.stringify(parsed)).catch(() => {});
+              return;
             }
 
-            const newIds: string[] = [];
-            for (const original of parsed.elements as SlideElement[]) {
-              const clone: SlideElement = JSON.parse(JSON.stringify(original));
-              clone.id = nextElementId();
-              clone.position = { x: original.position.x + 20, y: original.position.y + 20 };
-              delete clone.groupId;
-              addElement(slide.id, clone);
-              newIds.push(clone.id);
+            // Slide paste
+            if (parsed.slide) {
+              e.preventDefault();
+              const { cloneSlide } = await import("@/utils/id");
+              const { currentSlideIndex, addSlide, setCurrentSlide } = useDeckStore.getState();
+              const clone = cloneSlide(parsed.slide);
+              addSlide(clone, currentSlideIndex);
+              setCurrentSlide(currentSlideIndex + 1);
+              return;
             }
-            selectElement(newIds[0]!);
-            for (let i = 1; i < newIds.length; i++) {
-              selectElement(newIds[i]!, "add");
+
+            // Component reference paste
+            if (parsed.componentRef) {
+              e.preventDefault();
+              const state = useDeckStore.getState();
+              if (state.deck) {
+                const s = state.deck.slides[state.currentSlideIndex];
+                if (s && state.deck.components?.[parsed.componentRef]) {
+                  state.pasteReference(s.id, parsed.componentRef, { x: 100, y: 100 });
+                }
+              }
+              return;
             }
-            return;
           }
         } catch {
           // Not JSON, ignore

@@ -661,7 +661,9 @@ function ElementContextMenu({
             <ContextMenuItem
               label="Copy Reference"
               onClick={() => handleAction(() => {
-                setComponentClipboard((clickedElement as ReferenceElementType).componentId);
+                const compId = (clickedElement as ReferenceElementType).componentId;
+                setComponentClipboard(compId);
+                navigator.clipboard.writeText(JSON.stringify({ __deckode: true, componentRef: compId })).catch(() => {});
               })}
             />
             <ContextMenuItem

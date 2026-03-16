@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useDeckStore } from "@/stores/deckStore";
 import type { SlideElement } from "@/types/deck";
-import { nextElementId, cloneSlide } from "@/utils/id";
 import type { ReferenceElement, SharedComponent } from "@/types/deck";
 import { findUndoChanges } from "@/utils/deckDiff";
 import { skipNextRestore } from "@/utils/handleStore";
@@ -22,9 +21,8 @@ import { useAdapter } from "@/contexts/AdapterContext";
 import { useTikzAutoRender } from "@/hooks/useTikzAutoRender";
 
 import {
-  elementClipboard, setElementClipboard,
-  slideClipboard, setSlideClipboard,
-  componentClipboard, setComponentClipboard,
+  setElementClipboard,
+  setSlideClipboard,
 } from "./clipboard";
 
 function performUndoRedo(direction: "undo" | "redo") {
@@ -224,8 +222,10 @@ export function EditorLayout() {
             }
           } else if (slide) {
             // No elements selected → copy current slide
-            setSlideClipboard(JSON.parse(JSON.stringify(slide)));
+            const slideData = JSON.parse(JSON.stringify(slide));
+            setSlideClipboard(slideData);
             setElementClipboard(null);
+            navigator.clipboard.writeText(JSON.stringify({ __deckode: true, slide: slideData })).catch(() => {});
             e.preventDefault();
           }
         }
@@ -241,7 +241,10 @@ export function EditorLayout() {
               .map(id => slide.elements.find(el => el.id === id))
               .filter((el): el is SlideElement => el !== undefined);
             if (elements.length > 0) {
-              setElementClipboard(JSON.parse(JSON.stringify(elements)));
+              const cloned = JSON.parse(JSON.stringify(elements));
+              setElementClipboard(cloned);
+              // Write to system clipboard so paste event can access it
+              navigator.clipboard.writeText(JSON.stringify({ __deckode: true, elements: cloned })).catch(() => {});
               for (const elId of [...selectedElementIds]) {
                 deleteElement(slide.id, elId);
               }
@@ -251,55 +254,9 @@ export function EditorLayout() {
         }
         return;
       }
-      // Paste: Ctrl+V (elements, component reference, or slide from internal clipboard)
+      // Paste: Ctrl+V — don't preventDefault, let paste event in EditorCanvas
+      // handle everything (system clipboard takes priority over stale internal clipboard)
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.code === "KeyV") {
-        // Paste component reference from "Copy Reference"
-        if (componentClipboard) {
-          const { deck, currentSlideIndex, pasteReference } = useDeckStore.getState();
-          if (deck) {
-            const slide = deck.slides[currentSlideIndex];
-            if (slide && deck.components?.[componentClipboard]) {
-              pasteReference(slide.id, componentClipboard, { x: 100, y: 100 });
-              setComponentClipboard(null);
-              e.preventDefault();
-              return;
-            }
-          }
-        }
-        if (elementClipboard && elementClipboard.length > 0) {
-          const { deck, currentSlideIndex, addElement, selectElement } = useDeckStore.getState();
-          if (deck) {
-            const slide = deck.slides[currentSlideIndex];
-            if (slide) {
-              const newIds: string[] = [];
-              for (const original of elementClipboard) {
-                const clone = JSON.parse(JSON.stringify(original)) as SlideElement;
-                clone.id = nextElementId();
-                clone.position = { x: original.position.x + 20, y: original.position.y + 20 };
-                delete clone.groupId;
-                addElement(slide.id, clone);
-                newIds.push(clone.id);
-              }
-              // Offset clipboard so next paste cascades
-              for (const el of elementClipboard) {
-                el.position = { x: el.position.x + 20, y: el.position.y + 20 };
-              }
-              selectElement(newIds[0]!);
-              for (let i = 1; i < newIds.length; i++) {
-                selectElement(newIds[i]!, "add");
-              }
-              e.preventDefault();
-            }
-          }
-        } else if (slideClipboard) {
-          // Paste copied slide after current slide
-          const { currentSlideIndex, addSlide, setCurrentSlide } = useDeckStore.getState();
-          const clone = cloneSlide(slideClipboard);
-          addSlide(clone, currentSlideIndex);
-          setCurrentSlide(currentSlideIndex + 1);
-          e.preventDefault();
-        }
-        // No clipboard at all → don't preventDefault, let paste event handle file paste
         return;
       }
 

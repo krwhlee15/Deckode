@@ -15,6 +15,7 @@ import type {
   TableStyle,
   TikZElement,
   MermaidElement,
+  ReferenceElement,
 } from "@/types/deck";
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from "@/types/deck";
 import type { FileSystemAdapter } from "@/adapters/types";
@@ -23,6 +24,7 @@ import {
   resolveAssetSrc,
   toHex,
   fetchImageAsBase64,
+  cropImageViaCanvas,
   DEFAULT_BG,
   DEFAULT_TEXT_COLOR,
   DEFAULT_TEXT_SIZE,
@@ -34,6 +36,7 @@ import {
   DEFAULT_CODE_THEME,
   DEFAULT_TABLE_SIZE,
 } from "@/utils/exportUtils";
+import { computeBounds } from "@/utils/bounds";
 import type { MarkerType } from "@/types/deck";
 import { resolveMarkers } from "@/utils/lineMarkers";
 import type { ParsedLine } from "@/utils/markdownParser";
@@ -151,6 +154,25 @@ async function addElement(
     case "scene3d":
       addScene3DPlaceholder(slide, x, y, w, h, rotate);
       break;
+    case "reference": {
+      const refEl = el as ReferenceElement;
+      const comp = deck.components?.[refEl.componentId];
+      if (comp) {
+        const bounds = computeBounds(comp.elements);
+        const sx = bounds.w > 0 ? refEl.size.w / bounds.w : 1;
+        const sy = bounds.h > 0 ? refEl.size.h / bounds.h : 1;
+        for (const child of comp.elements) {
+          const clone = JSON.parse(JSON.stringify(child)) as SlideElement;
+          clone.position = {
+            x: refEl.position.x + (child.position.x - bounds.x) * sx,
+            y: refEl.position.y + (child.position.y - bounds.y) * sy,
+          };
+          clone.size = { w: child.size.w * sx, h: child.size.h * sy };
+          await addElement(slide, clone, deck, adapter);
+        }
+      }
+      break;
+    }
   }
 }
 
@@ -489,6 +511,29 @@ async function addImage(
     imgData = await fetchImageAsBase64(resolved);
   }
   if (!imgData) return;
+
+  const crop = s.crop;
+  const hasCrop = crop && (crop.top || crop.right || crop.bottom || crop.left);
+
+  if (hasCrop) {
+    const objectFit = s.objectFit ?? "fill";
+    const cropped = await cropImageViaCanvas(imgData, el.size.w, el.size.h, objectFit, crop);
+    const cx = x + w * crop.left;
+    const cy = y + h * crop.top;
+    const cw = w * (1 - crop.left - crop.right);
+    const ch = h * (1 - crop.top - crop.bottom);
+    slide.addImage({
+      data: cropped,
+      x: cx,
+      y: cy,
+      w: cw,
+      h: ch,
+      rotate,
+      transparency: opacity < 1 ? Math.round((1 - opacity) * 100) : undefined,
+      altText: el.alt,
+    });
+    return;
+  }
 
   slide.addImage({
     data: imgData,

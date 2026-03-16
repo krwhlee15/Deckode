@@ -15,6 +15,7 @@ import type {
   TableElement,
   TableStyle,
   TikZElement,
+  ReferenceElement,
   Slide,
 } from "@/types/deck";
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from "@/types/deck";
@@ -25,6 +26,7 @@ import {
   fetchImageAsBase64,
   isPdfSrc,
   rasterizePdfToBase64,
+  cropImageViaCanvas,
   hexToRgb,
   DEFAULT_BG,
   DEFAULT_TEXT_COLOR,
@@ -37,6 +39,7 @@ import {
   DEFAULT_CODE_THEME,
   DEFAULT_TABLE_SIZE,
 } from "@/utils/exportUtils";
+import { computeBounds } from "@/utils/bounds";
 import { resolveMarkers } from "@/utils/lineMarkers";
 import type { TextRun, ParsedLine } from "@/utils/markdownParser";
 import { parseMarkdownLines } from "@/utils/markdownParser";
@@ -855,6 +858,26 @@ async function drawImage(
 
   const { x, y } = el.position;
   const { w, h } = el.size;
+  const opacity = s.opacity ?? 1;
+  const crop = s.crop;
+  const hasCrop = crop && (crop.top || crop.right || crop.bottom || crop.left);
+
+  // If cropped, pre-render with object-fit via canvas and place at crop region
+  if (hasCrop) {
+    const cropped = await cropImageViaCanvas(imgData, w, h, objectFit, crop);
+    const cx = x + w * crop.left;
+    const cy = y + h * crop.top;
+    const cw = w * (1 - crop.left - crop.right);
+    const ch = h * (1 - crop.top - crop.bottom);
+    if (opacity < 1) {
+      doc.saveGraphicsState();
+      // @ts-expect-error GState constructor is available on jsPDF instance
+      doc.setGState(new doc.GState({ opacity }));
+    }
+    doc.addImage(cropped, "PNG", cx, cy, cw, ch);
+    if (opacity < 1) doc.restoreGraphicsState();
+    return;
+  }
 
   // Load image to determine natural dimensions for object-fit
   const img = new Image();
@@ -902,7 +925,6 @@ async function drawImage(
   const imgY = y + (h - rh) / 2;
 
   // Apply opacity if set
-  const opacity = s.opacity ?? 1;
   if (opacity < 1) {
     doc.saveGraphicsState();
     // @ts-expect-error GState constructor is available on jsPDF instance
@@ -1170,6 +1192,32 @@ async function renderSlide(
       case "scene3d":
         drawScene3DPlaceholder(doc, el);
         break;
+      case "reference": {
+        const refEl = el as ReferenceElement;
+        const comp = deck.components?.[refEl.componentId];
+        if (comp) {
+          const bounds = computeBounds(comp.elements);
+          const sx = bounds.w > 0 ? refEl.size.w / bounds.w : 1;
+          const sy = bounds.h > 0 ? refEl.size.h / bounds.h : 1;
+          for (const child of comp.elements) {
+            const clone = JSON.parse(JSON.stringify(child)) as SlideElement;
+            clone.position = {
+              x: refEl.position.x + (child.position.x - bounds.x) * sx,
+              y: refEl.position.y + (child.position.y - bounds.y) * sy,
+            };
+            clone.size = { w: child.size.w * sx, h: child.size.h * sy };
+            switch (clone.type) {
+              case "text": await drawText(doc, clone as TextElement, deck); break;
+              case "code": await drawCode(doc, clone as CodeElement, deck); break;
+              case "shape": drawShape(doc, clone as ShapeElement, deck); break;
+              case "image": await drawImage(doc, clone as ImageElement, deck, adapter); break;
+              case "table": drawTable(doc, clone as TableElement, deck); break;
+              case "tikz": await drawTikZ(doc, clone as TikZElement, deck, adapter); break;
+            }
+          }
+        }
+        break;
+      }
     }
 
     if (rotation !== 0) {

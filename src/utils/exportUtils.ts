@@ -120,6 +120,67 @@ export async function rasterizePdfToBase64(
   return dataUrl;
 }
 
+// ---- Crop: render image with object-fit, extract crop region via canvas ----
+
+import type { CropRect } from "@/types/deck";
+
+export async function cropImageViaCanvas(
+  imgData: string,
+  elementW: number,
+  elementH: number,
+  objectFit: string,
+  crop: CropRect,
+): Promise<string> {
+  const img = new Image();
+  await new Promise<void>((resolve) => {
+    img.onload = () => resolve();
+    img.onerror = () => resolve();
+    img.src = imgData;
+  });
+
+  const nw = img.naturalWidth || elementW;
+  const nh = img.naturalHeight || elementH;
+
+  // Compute rendered position/size within element box (object-fit)
+  let rw: number, rh: number, rx: number, ry: number;
+  if (objectFit === "fill") {
+    rw = elementW; rh = elementH; rx = 0; ry = 0;
+  } else if (objectFit === "cover") {
+    if (nw / nh > elementW / elementH) {
+      rh = elementH; rw = elementH * (nw / nh);
+    } else {
+      rw = elementW; rh = elementW * (nh / nw);
+    }
+    rx = (elementW - rw) / 2;
+    ry = (elementH - rh) / 2;
+  } else {
+    // contain
+    if (nw / nh > elementW / elementH) {
+      rw = elementW; rh = elementW * (nh / nw);
+    } else {
+      rh = elementH; rw = elementH * (nw / nh);
+    }
+    rx = (elementW - rw) / 2;
+    ry = (elementH - rh) / 2;
+  }
+
+  // Crop region in element-local coordinates
+  const cx = elementW * crop.left;
+  const cy = elementH * crop.top;
+  const cw = elementW * (1 - crop.left - crop.right);
+  const ch = elementH * (1 - crop.top - crop.bottom);
+  if (cw <= 0 || ch <= 0) return imgData;
+
+  const scale = 2;
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(cw * scale);
+  canvas.height = Math.round(ch * scale);
+  const ctx = canvas.getContext("2d")!;
+  ctx.scale(scale, scale);
+  ctx.drawImage(img, rx - cx, ry - cy, rw, rh);
+  return canvas.toDataURL("image/png");
+}
+
 export function hexToRgb(hex: string): [number, number, number] {
   let clean = hex.replace(/^#/, "");
   // Short hex: #RGB → RRGGBB

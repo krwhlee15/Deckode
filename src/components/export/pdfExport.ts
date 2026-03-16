@@ -19,6 +19,7 @@ import type {
   TableStyle,
   TikZElement,
   MermaidElement,
+  ReferenceElement,
 } from "@/types/deck";
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from "@/types/deck";
 import type { FileSystemAdapter } from "@/adapters/types";
@@ -40,6 +41,7 @@ import {
   DEFAULT_CODE_THEME,
   DEFAULT_TABLE_SIZE,
 } from "@/utils/exportUtils";
+import { computeBounds } from "@/utils/bounds";
 import { resolveMarkers } from "@/utils/lineMarkers";
 
 const MIN_FONT_SIZE = 6;
@@ -241,6 +243,10 @@ async function renderSlide(
       if (node.dataset.flexFit) {
         fitFont(node, Number(node.dataset.flexFit));
       }
+      // Also handle nested flex-fit (e.g. text inside reference components)
+      for (const nested of node.querySelectorAll("[data-flex-fit]")) {
+        fitFont(nested as HTMLElement, Number((nested as HTMLElement).dataset.flexFit));
+      }
     } catch (err) {
       console.error("[PDF] element build error:", el.type, el.id, err);
     }
@@ -330,9 +336,51 @@ async function buildElement(
       return buildMermaid(el);
     case "video":
       return buildVideo();
+    case "reference":
+      return await buildReference(el as ReferenceElement, deck, adapter);
     default:
       return null;
   }
+}
+
+// ---- Reference (mirrors ReferenceElement.tsx) ----
+
+async function buildReference(
+  el: ReferenceElement,
+  deck: Deck,
+  adapter: FileSystemAdapter,
+): Promise<HTMLElement | null> {
+  const comp = deck.components?.[el.componentId];
+  if (!comp) return null;
+
+  const bounds = computeBounds(comp.elements);
+  const scaleX = bounds.w > 0 ? el.size.w / bounds.w : 1;
+  const scaleY = bounds.h > 0 ? el.size.h / bounds.h : 1;
+
+  const outer = document.createElement("div");
+  outer.style.cssText = "width:100%;height:100%;position:relative;overflow:hidden";
+
+  const inner = document.createElement("div");
+  inner.style.cssText = `width:${bounds.w}px;height:${bounds.h}px;transform:scale(${scaleX},${scaleY});transform-origin:top left;position:relative`;
+
+  const origin = document.createElement("div");
+  origin.style.cssText = `position:relative;left:${-bounds.x}px;top:${-bounds.y}px`;
+
+  for (const child of comp.elements) {
+    const node = await buildElement(child, deck, adapter);
+    if (!node) continue;
+    node.style.position = "absolute";
+    node.style.left = `${child.position.x}px`;
+    node.style.top = `${child.position.y}px`;
+    node.style.width = `${child.size.w}px`;
+    node.style.height = `${child.size.h}px`;
+    node.style.overflow = "hidden";
+    origin.appendChild(node);
+  }
+
+  inner.appendChild(origin);
+  outer.appendChild(inner);
+  return outer;
 }
 
 // ---- Text (mirrors TextElement.tsx) ----
@@ -405,6 +453,8 @@ async function buildImage(
   d.style.cssText = "width:100%;height:100%";
 
   const img = document.createElement("img");
+  const crop = s.crop;
+  const hasCrop = crop && (crop.top || crop.right || crop.bottom || crop.left);
   img.style.cssText = [
     "width:100%",
     "height:100%",
@@ -412,6 +462,7 @@ async function buildImage(
     `border-radius:${s.borderRadius ?? 0}px`,
     `opacity:${s.opacity ?? 1}`,
     s.border ? `border:${s.border}` : "",
+    hasCrop ? `clip-path:inset(${crop.top * 100}% ${crop.right * 100}% ${crop.bottom * 100}% ${crop.left * 100}%)` : "",
   ]
     .filter(Boolean)
     .join(";");

@@ -3,7 +3,8 @@ import { useDeckStore } from "@/stores/deckStore";
 import { SlideRenderer } from "@/components/renderer/SlideRenderer";
 import { computeSteps } from "@/utils/animationSteps";
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from "@/types/deck";
-import type { Slide, SlideTransition, DeckTheme } from "@/types/deck";
+import type { Slide, SlideTransition, DeckTheme, PageNumberConfig } from "@/types/deck";
+import { getPageNumberInfo } from "@/utils/pageNumbers";
 import { AnimatePresence, motion, useIsPresent } from "framer-motion";
 import { MorphTransition } from "@/components/renderer/MorphTransition";
 
@@ -134,6 +135,7 @@ export function ViewOnlyPresentation({ onExit }: ViewOnlyPresentationProps) {
             onNextSlide={nextVisibleSlide}
             onPrevSlide={prevVisibleSlide}
             theme={deck.theme}
+            pageNumberInfo={getPageNumberInfo(deck, currentSlideIndex)}
           />
         ) : (
           <AnimatePresence mode="wait">
@@ -151,6 +153,7 @@ export function ViewOnlyPresentation({ onExit }: ViewOnlyPresentationProps) {
                 onNextSlide={nextVisibleSlide}
                 onPrevSlide={prevVisibleSlide}
                 theme={deck.theme}
+                pageNumberInfo={getPageNumberInfo(deck, currentSlideIndex)}
               />
             </motion.div>
           </AnimatePresence>
@@ -177,6 +180,7 @@ function ViewOnlySlideWithSteps({
   onNextSlide,
   onPrevSlide,
   theme,
+  pageNumberInfo,
 }: {
   slide: Slide;
   scale: number;
@@ -184,6 +188,7 @@ function ViewOnlySlideWithSteps({
   onNextSlide: () => void;
   onPrevSlide: () => void;
   theme?: DeckTheme;
+  pageNumberInfo?: { pageNumber: number; totalPages: number; config: PageNumberConfig };
 }) {
   const steps = useMemo(
     () => computeSteps(slide.animations ?? []),
@@ -249,6 +254,7 @@ function ViewOnlySlideWithSteps({
       steps={steps}
       onAdvance={advance}
       theme={theme}
+      pageNumberInfo={pageNumberInfo}
     />
   );
 }
@@ -261,6 +267,7 @@ function ViewOnlyMorphSlideWithSteps({
   onNextSlide,
   onPrevSlide,
   theme,
+  pageNumberInfo,
 }: {
   slide: Slide;
   scale: number;
@@ -269,6 +276,7 @@ function ViewOnlyMorphSlideWithSteps({
   onNextSlide: () => void;
   onPrevSlide: () => void;
   theme?: DeckTheme;
+  pageNumberInfo?: { pageNumber: number; totalPages: number; config: PageNumberConfig };
 }) {
   const steps = useMemo(
     () => computeSteps(slide.animations ?? []),
@@ -337,6 +345,7 @@ function ViewOnlyMorphSlideWithSteps({
       activeStep={activeStep}
       steps={steps}
       onAdvance={advance}
+      pageNumberInfo={pageNumberInfo}
     />
   );
 }

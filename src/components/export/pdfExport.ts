@@ -177,10 +177,11 @@ export async function exportToPdf(
   });
 
   const slides = deck.slides.filter((s) => !s.hidden);
+  const totalPages = slides.length;
 
   for (let i = 0; i < slides.length; i++) {
     if (i > 0) doc.addPage([CANVAS_WIDTH, CANVAS_HEIGHT], "landscape");
-    await renderSlide(doc, slides[i]!, deck, adapter);
+    await renderSlide(doc, slides[i]!, deck, adapter, i + 1, totalPages);
   }
 
   const name = (deck.meta.title || "presentation").replace(
@@ -205,6 +206,8 @@ async function renderSlide(
   slide: Slide,
   deck: Deck,
   adapter: FileSystemAdapter,
+  pageNumber: number,
+  totalPages: number,
 ): Promise<void> {
   // Wrapper: positioned at (0,0) behind everything (lowest z-index).
   // This is NOT the captured node — its styles don't get cloned.
@@ -250,6 +253,30 @@ async function renderSlide(
     } catch (err) {
       console.error("[PDF] element build error:", el.type, el.id, err);
     }
+  }
+
+  // Page number overlay
+  const pnConfig = deck.pageNumbers;
+  if (pnConfig?.enabled && !slide.hidePageNumber) {
+    const pn = document.createElement("div");
+    const pos = pnConfig.position ?? "bottom-right";
+    const margin = pnConfig.margin ?? 20;
+    const fontSize = pnConfig.fontSize ?? 14;
+    const color = pnConfig.color ?? "#94a3b8";
+    const fontFamily = pnConfig.fontFamily || "sans-serif";
+    const opacity = pnConfig.opacity ?? 1;
+    const text = pnConfig.format === "number-total"
+      ? `${pageNumber} / ${totalPages}`
+      : `${pageNumber}`;
+
+    pn.textContent = text;
+    pn.style.cssText = `position:absolute;font-size:${fontSize}px;color:${color};font-family:${fontFamily};opacity:${opacity};line-height:1;white-space:nowrap;pointer-events:none`;
+    if (pos.startsWith("bottom")) pn.style.bottom = `${margin}px`;
+    else pn.style.top = `${margin}px`;
+    if (pos.endsWith("right")) pn.style.right = `${margin}px`;
+    else if (pos.endsWith("left")) pn.style.left = `${margin}px`;
+    else { pn.style.left = "50%"; pn.style.transform = "translateX(-50%)"; }
+    ctr.appendChild(pn);
   }
 
   // Wait for all images to load

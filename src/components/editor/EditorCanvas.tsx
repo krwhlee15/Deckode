@@ -4,6 +4,7 @@ import { usePreviewStore } from "@/stores/previewStore";
 import { SlideRenderer } from "@/components/renderer/SlideRenderer";
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from "@/types/deck";
 import type { ImageElement, VideoElement, SlideElement, ShapeElement } from "@/types/deck";
+import { getPageNumberInfo } from "@/utils/pageNumbers";
 import { SelectionOverlay, TrimOverlay } from "./SelectionOverlay";
 import { useAdapter } from "@/contexts/AdapterContext";
 import { assert } from "@/utils/assert";
@@ -20,8 +21,10 @@ const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 5;
 
 export function EditorCanvas() {
-  const slide = useDeckStore((s) => s.deck?.slides[s.currentSlideIndex]);
-  const theme = useDeckStore((s) => s.deck?.theme);
+  const deck = useDeckStore((s) => s.deck);
+  const currentSlideIndex = useDeckStore((s) => s.currentSlideIndex);
+  const slide = deck?.slides[currentSlideIndex];
+  const theme = deck?.theme;
   const selectElement = useDeckStore((s) => s.selectElement);
   const selectElements = useDeckStore((s) => s.selectElements);
   const addElement = useDeckStore((s) => s.addElement);
@@ -649,6 +652,7 @@ export function EditorCanvas() {
           previewDelayOverrides={previewDelayOverrides ?? undefined}
           previewKey={previewKey}
           editorMode
+          pageNumberInfo={deck ? getPageNumberInfo(deck, currentSlideIndex) : undefined}
         />
         {editingComponentId && (
           <ComponentEditOverlay

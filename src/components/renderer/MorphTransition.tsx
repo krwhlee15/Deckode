@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import type { Slide, DeckTheme, Animation } from "@/types/deck";
+import type { Slide, DeckTheme, Animation, PageNumberConfig } from "@/types/deck";
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from "@/types/deck";
+import { PageNumber } from "./PageNumber";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { useAssetUrl } from "@/contexts/AdapterContext";
 import { useDeckStore } from "@/stores/deckStore";
@@ -16,6 +17,7 @@ interface MorphTransitionProps {
   activeStep?: number;
   steps?: AnimationStep[];
   onAdvance?: () => void;
+  pageNumberInfo?: { pageNumber: number; totalPages: number; config: PageNumberConfig };
 }
 
 interface MorphState {
@@ -37,6 +39,7 @@ export function MorphTransition({
   slide,
   scale,
   duration,
+  pageNumberInfo,
   theme,
   activeStep,
   steps,
@@ -231,6 +234,13 @@ export function MorphTransition({
               </motion.div>
             ))}
         </AnimatePresence>
+        {pageNumberInfo && (
+          <PageNumber
+            pageNumber={pageNumberInfo.pageNumber}
+            totalPages={pageNumberInfo.totalPages}
+            config={pageNumberInfo.config}
+          />
+        )}
       </motion.div>
     </div>
   );

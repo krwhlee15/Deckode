@@ -3,6 +3,8 @@ import { useDeckStore } from "@/stores/deckStore";
 import type {
   DeckTheme,
   SlideBackground,
+  PageNumberPosition,
+  PageNumberFormat,
 } from "@/types/deck";
 import {
   ColorField,
@@ -44,11 +46,22 @@ function Section({
   );
 }
 
+const PAGE_NUMBER_POSITIONS: readonly PageNumberPosition[] = [
+  "bottom-right", "bottom-left", "bottom-center",
+  "top-right", "top-left", "top-center",
+] as const;
+
+const PAGE_NUMBER_FORMATS: readonly PageNumberFormat[] = [
+  "number", "number-total",
+] as const;
+
 // -- Main panel --
 
 export function ThemePanel() {
   const theme = useDeckStore((s) => s.deck?.theme) ?? {};
+  const pageNumbers = useDeckStore((s) => s.deck?.pageNumbers);
   const updateTheme = useDeckStore((s) => s.updateTheme);
+  const updatePageNumbers = useDeckStore((s) => s.updatePageNumbers);
 
   const patchStyle = useCallback(
     <K extends keyof DeckTheme>(key: K) =>
@@ -268,6 +281,63 @@ export function ThemePanel() {
           min={0}
           max={32}
         />
+      </Section>
+
+      <Section title="Page Numbers">
+        <CheckboxField
+          label="Enabled"
+          value={pageNumbers?.enabled}
+          onChange={(v) => updatePageNumbers({ enabled: v })}
+        />
+        {pageNumbers?.enabled && (
+          <>
+            <SelectField
+              label="Position"
+              value={pageNumbers.position ?? "bottom-right"}
+              options={PAGE_NUMBER_POSITIONS}
+              onChange={(v) => updatePageNumbers({ position: v })}
+            />
+            <SelectField
+              label="Format"
+              value={pageNumbers.format ?? "number"}
+              options={PAGE_NUMBER_FORMATS}
+              onChange={(v) => updatePageNumbers({ format: v })}
+            />
+            <NumberField
+              label="Font Size"
+              value={pageNumbers.fontSize ?? 14}
+              onChange={(v) => updatePageNumbers({ fontSize: v })}
+              min={8}
+              max={48}
+            />
+            <ColorField
+              label="Color"
+              value={pageNumbers.color ?? "#94a3b8"}
+              onChange={(v) => updatePageNumbers({ color: v })}
+            />
+            <TextField
+              label="Font Family"
+              value={pageNumbers.fontFamily}
+              onChange={(v) => updatePageNumbers({ fontFamily: v })}
+              placeholder="sans-serif"
+            />
+            <NumberField
+              label="Margin"
+              value={pageNumbers.margin ?? 20}
+              onChange={(v) => updatePageNumbers({ margin: v })}
+              min={0}
+              max={100}
+            />
+            <NumberField
+              label="Opacity"
+              value={pageNumbers.opacity ?? 1}
+              onChange={(v) => updatePageNumbers({ opacity: v })}
+              min={0}
+              max={1}
+              step={0.05}
+            />
+          </>
+        )}
       </Section>
     </div>
   );

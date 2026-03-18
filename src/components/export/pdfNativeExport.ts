@@ -1128,6 +1128,8 @@ async function renderSlide(
   slide: Slide,
   deck: Deck,
   adapter: FileSystemAdapter,
+  pageNumber: number,
+  totalPages: number,
 ): Promise<void> {
   // Fill slide background
   const bg = slide.background ?? deck.theme?.slide?.background;
@@ -1224,6 +1226,41 @@ async function renderSlide(
       doc.restoreGraphicsState();
     }
   }
+
+  // Page number overlay
+  const pnConfig = deck.pageNumbers;
+  if (pnConfig?.enabled && !slide.hidePageNumber) {
+    const pos = pnConfig.position ?? "bottom-right";
+    const margin = pnConfig.margin ?? 20;
+    const fontSize = pnConfig.fontSize ?? 14;
+    const color = pnConfig.color ?? "#94a3b8";
+    const fontFamily = pnConfig.fontFamily || "helvetica";
+    const opacity = pnConfig.opacity ?? 1;
+    const text = pnConfig.format === "number-total"
+      ? `${pageNumber} / ${totalPages}`
+      : `${pageNumber}`;
+
+    doc.saveGraphicsState();
+    // @ts-expect-error jsPDF GState constructor
+    doc.setGState(new doc.GState({ opacity }));
+    setTextColor(doc, color);
+    doc.setFont(fontFamily, "normal");
+    doc.setFontSize(fontSize);
+
+    const textWidth = doc.getTextWidth(text);
+    let x: number;
+    let y: number;
+
+    if (pos.startsWith("bottom")) y = CANVAS_HEIGHT - margin;
+    else y = margin + fontSize;
+
+    if (pos.endsWith("right")) x = CANVAS_WIDTH - margin - textWidth;
+    else if (pos.endsWith("left")) x = margin;
+    else x = (CANVAS_WIDTH - textWidth) / 2;
+
+    doc.text(text, x, y);
+    doc.restoreGraphicsState();
+  }
 }
 
 // ========================================================================
@@ -1242,10 +1279,11 @@ export async function buildNativePdf(
   });
 
   const slides = deck.slides.filter((s) => !s.hidden);
+  const totalPages = slides.length;
 
   for (let i = 0; i < slides.length; i++) {
     if (i > 0) doc.addPage([CANVAS_WIDTH, CANVAS_HEIGHT], "landscape");
-    await renderSlide(doc, slides[i]!, deck, adapter);
+    await renderSlide(doc, slides[i]!, deck, adapter, i + 1, totalPages);
   }
 
   return doc;

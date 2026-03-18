@@ -65,7 +65,11 @@ export async function exportToPptx(
   pres.title = deck.meta.title;
   if (deck.meta.author) pres.author = deck.meta.author;
 
-  for (const slide of deck.slides.filter((s) => !s.hidden)) {
+  const visibleSlides = deck.slides.filter((s) => !s.hidden);
+  const totalPages = visibleSlides.length;
+
+  for (let si = 0; si < visibleSlides.length; si++) {
+    const slide = visibleSlides[si]!;
     const pptSlide = pres.addSlide();
 
     // Background
@@ -89,6 +93,45 @@ export async function exportToPptx(
     // Elements
     for (const el of slide.elements) {
       await addElement(pptSlide, el, deck, adapter);
+    }
+
+    // Page number
+    const pnConfig = deck.pageNumbers;
+    if (pnConfig?.enabled && !slide.hidePageNumber) {
+      const pos = pnConfig.position ?? "bottom-right";
+      const margin = pnConfig.margin ?? 20;
+      const fontSize = pnConfig.fontSize ?? 14;
+      const color = pnConfig.color ?? "#94a3b8";
+      const fontFamily = pnConfig.fontFamily || "Arial";
+      const opacity = pnConfig.opacity ?? 1;
+      const text = pnConfig.format === "number-total"
+        ? `${si + 1} / ${totalPages}`
+        : `${si + 1}`;
+      const fontPt = fontSize * PX_TO_PT;
+
+      // Estimate text width (rough: ~0.6 * fontSize per char)
+      const estWidthPx = text.length * fontSize * 0.6;
+
+      let xPx: number;
+      let yPx: number;
+      if (pos.startsWith("bottom")) yPx = CANVAS_HEIGHT - margin - fontSize;
+      else yPx = margin;
+      if (pos.endsWith("right")) xPx = CANVAS_WIDTH - margin - estWidthPx;
+      else if (pos.endsWith("left")) xPx = margin;
+      else xPx = (CANVAS_WIDTH - estWidthPx) / 2;
+
+      const hexColor = toHex(color);
+      pptSlide.addText(text, {
+        x: xPx * PX_TO_IN_X,
+        y: yPx * PX_TO_IN_Y,
+        w: estWidthPx * PX_TO_IN_X * 1.5,
+        h: fontSize * PX_TO_IN_Y * 1.5,
+        fontSize: fontPt,
+        fontFace: fontFamily,
+        color: hexColor ?? "94a3b8",
+        transparency: Math.round((1 - opacity) * 100),
+        align: pos.endsWith("center") ? "center" : pos.endsWith("right") ? "right" : "left",
+      });
     }
 
     // Notes (strip [step:N]...[/step] markers)

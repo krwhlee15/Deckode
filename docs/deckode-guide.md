@@ -109,6 +109,7 @@ A Deckode presentation is a single `deck.json` file (with optional `$ref` splits
     "tikz": { "backgroundColor": "#1e1e2e" },
     "table": { "headerBackground": "#1e293b", "borderColor": "#334155" }
   },
+  "pageNumbers": { "enabled": true, "position": "bottom-right", "format": "number" },
   "components": {
     "comp-a1b2c3d4": {
       "id": "comp-a1b2c3d4",
@@ -128,6 +129,7 @@ A Deckode presentation is a single `deck.json` file (with optional `$ref` splits
 | `meta.author` | string | no | Author name |
 | `meta.aspectRatio` | `"16:9"` \| `"4:3"` | yes | Slide aspect ratio |
 | `theme` | object | no | Deck-level default styles (see Theme section below) |
+| `pageNumbers` | object | no | Page number overlay config (see Page Numbers section below) |
 | `components` | object | no | Shared components referenced by `"reference"` elements (see Shared Components below) |
 
 ### Slide Object
@@ -154,6 +156,8 @@ A Deckode presentation is a single `deck.json` file (with optional `$ref` splits
 | `transition` | object | no | Slide enter transition |
 | `transition.type` | `"fade"` \| `"slide"` \| `"none"` | no | Transition type |
 | `transition.duration` | number | no | Duration in ms. Default: `300` |
+| `hidden` | boolean | no | Hide this slide from presentation and export |
+| `hidePageNumber` | boolean | no | Suppress page number on this slide (when page numbers are enabled globally) |
 | `notes` | string | no | Speaker notes (plain text or Markdown) |
 | `elements` | array | yes | Array of Element objects |
 | `animations` | array | no | Array of Animation objects |
@@ -1373,6 +1377,39 @@ To change the default text color for the entire deck to red without touching ind
 ```
 
 Elements with an explicit `style.color` will still use their own value.
+
+---
+
+## Page Numbers
+
+The optional top-level `pageNumbers` object enables a page number overlay on all slides. Hidden slides are excluded from the count.
+
+```json
+{
+  "pageNumbers": {
+    "enabled": true,
+    "position": "bottom-right",
+    "format": "number-total",
+    "fontSize": 14,
+    "color": "#94a3b8",
+    "margin": 20,
+    "opacity": 0.8
+  }
+}
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `enabled` | boolean | — | Required. Whether to show page numbers |
+| `position` | string | `"bottom-right"` | One of: `"bottom-right"`, `"bottom-left"`, `"bottom-center"`, `"top-right"`, `"top-left"`, `"top-center"` |
+| `format` | string | `"number"` | `"number"` shows just the page number, `"number-total"` shows `1 / 10` |
+| `fontSize` | number | `14` | Font size in px |
+| `color` | string | `"#94a3b8"` | CSS color value |
+| `fontFamily` | string | `"sans-serif"` | Font family |
+| `margin` | number | `20` | Distance from edge in px |
+| `opacity` | number | `1` | Opacity (0–1) |
+
+Individual slides can opt out by setting `"hidePageNumber": true` in the slide object. Page numbers appear in the editor, presentation mode, and all exports (PDF, PPTX).
 
 ---
 

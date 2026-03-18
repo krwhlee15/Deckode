@@ -57,6 +57,7 @@ export function SlideList() {
   const addSlide = useDeckStore((s) => s.addSlide);
   const deleteSlide = useDeckStore((s) => s.deleteSlide);
   const toggleSlideHidden = useDeckStore((s) => s.toggleSlideHidden);
+  const updateSlide = useDeckStore((s) => s.updateSlide);
   const moveSlide = useDeckStore((s) => s.moveSlide);
   const adapter = useAdapter();
   const listRef = useRef<HTMLDivElement>(null);
@@ -197,6 +198,8 @@ export function SlideList() {
           {...contextMenu}
           canDelete={slides.length > 1}
           isHidden={!!slides[contextMenu.slideIndex]?.hidden}
+          hidePageNumber={!!slides[contextMenu.slideIndex]?.hidePageNumber}
+          pageNumbersEnabled={!!useDeckStore.getState().deck?.pageNumbers?.enabled}
           onNewSlide={() => {
             const slide = createBlankSlide();
             addSlide(slide, contextMenu.slideIndex);
@@ -213,6 +216,11 @@ export function SlideList() {
             closeContextMenu();
           }}
           onToggleHidden={() => { toggleSlideHidden(contextMenu.slideId); closeContextMenu(); }}
+          onTogglePageNumber={() => {
+            const slide = slides[contextMenu.slideIndex];
+            if (slide) updateSlide(contextMenu.slideId, { hidePageNumber: !slide.hidePageNumber });
+            closeContextMenu();
+          }}
           onDelete={() => { handleDeleteSlide(contextMenu.slideId, contextMenu.slideIndex); closeContextMenu(); }}
           onClose={closeContextMenu}
         />
@@ -341,10 +349,13 @@ function SlideContextMenu({
   x,
   y,
   isHidden,
+  hidePageNumber,
+  pageNumbersEnabled,
   canDelete,
   onNewSlide,
   onDuplicate,
   onToggleHidden,
+  onTogglePageNumber,
   onDelete,
   onClose,
 }: {
@@ -353,10 +364,13 @@ function SlideContextMenu({
   slideId: string;
   slideIndex: number;
   isHidden: boolean;
+  hidePageNumber: boolean;
+  pageNumbersEnabled: boolean;
   canDelete: boolean;
   onNewSlide: () => void;
   onDuplicate: () => void;
   onToggleHidden: () => void;
+  onTogglePageNumber: () => void;
   onDelete: () => void;
   onClose: () => void;
 }) {
@@ -379,6 +393,12 @@ function SlideContextMenu({
           label={isHidden ? "Show Slide" : "Hide Slide"}
           onClick={onToggleHidden}
         />
+        {pageNumbersEnabled && (
+          <ContextMenuItem
+            label={hidePageNumber ? "Show Page Number" : "Hide Page Number"}
+            onClick={onTogglePageNumber}
+          />
+        )}
         {canDelete && (
           <>
             <div className="h-px bg-zinc-700 my-1" />

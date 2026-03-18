@@ -316,6 +316,7 @@ export interface Slide {
   id: string;
   layout?: string;
   hidden?: boolean;
+  hidePageNumber?: boolean;
   background?: SlideBackground;
   transition?: SlideTransition;
   notes?: string;
@@ -324,6 +325,29 @@ export interface Slide {
   comments?: Comment[];
   /** Tracks external file origin when loaded from a $ref pointer */
   _ref?: string;
+}
+
+// ----- Page Numbers -----
+
+export type PageNumberPosition =
+  | "bottom-right"
+  | "bottom-left"
+  | "bottom-center"
+  | "top-right"
+  | "top-left"
+  | "top-center";
+
+export type PageNumberFormat = "number" | "number-total";
+
+export interface PageNumberConfig {
+  enabled: boolean;
+  position?: PageNumberPosition;
+  fontSize?: number;
+  color?: string;
+  fontFamily?: string;
+  format?: PageNumberFormat;
+  margin?: number;
+  opacity?: number;
 }
 
 // ----- Theme -----
@@ -361,6 +385,7 @@ export interface Deck {
   deckode: string;
   meta: DeckMeta;
   theme?: DeckTheme;
+  pageNumbers?: PageNumberConfig;
   components?: Record<string, SharedComponent>;
   slides: Slide[];
 }

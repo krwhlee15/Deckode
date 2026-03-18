@@ -20,6 +20,7 @@
       }
     },
     "theme": { "$ref": "#/$defs/DeckTheme" },
+    "pageNumbers": { "$ref": "#/$defs/PageNumberConfig" },
     "slides": {
       "type": "array",
       "items": {
@@ -143,6 +144,21 @@
         }
       }
     },
+    "PageNumberConfig": {
+      "type": "object",
+      "description": "Page number overlay configuration",
+      "required": ["enabled"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "position": { "type": "string", "enum": ["bottom-right", "bottom-left", "bottom-center", "top-right", "top-left", "top-center"] },
+        "fontSize": { "type": "number", "minimum": 1 },
+        "color": { "type": "string" },
+        "fontFamily": { "type": "string" },
+        "format": { "type": "string", "enum": ["number", "number-total"] },
+        "margin": { "type": "number", "minimum": 0 },
+        "opacity": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
     "Position": {
       "type": "object",
       "required": ["x", "y"],
@@ -187,6 +203,8 @@
             "duration": { "type": "number", "minimum": 0 }
           }
         },
+        "hidden": { "type": "boolean" },
+        "hidePageNumber": { "type": "boolean" },
         "notes": { "type": "string" },
         "elements": {
           "type": "array",

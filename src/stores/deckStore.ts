@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { immer } from "zustand/middleware/immer";
 import { subscribeWithSelector } from "zustand/middleware";
 import { temporal } from "zundo";
-import type { Animation, Comment, Deck, DeckTheme, SharedComponent, Slide, SlideElement, ReferenceElement } from "@/types/deck";
+import type { Animation, Comment, Deck, DeckTheme, PageNumberConfig, SharedComponent, Slide, SlideElement, ReferenceElement } from "@/types/deck";
 import type { FileSystemAdapter } from "@/adapters/types";
 import { nextElementId, syncCounters } from "@/utils/id";
 import { assert } from "@/utils/assert";
@@ -83,6 +83,7 @@ interface DeckState {
   updateComment: (slideId: string, commentId: string, text: string) => void;
   deleteComment: (slideId: string, commentId: string) => void;
   updateTheme: (patch: Partial<DeckTheme>) => void;
+  updatePageNumbers: (patch: Partial<PageNumberConfig>) => void;
   toggleSlideHidden: (slideId: string) => void;
   highlightElements: (ids: string[]) => void;
   setCropElement: (id: string | null) => void;
@@ -565,6 +566,13 @@ export const useDeckStore = create<DeckState>()(
               merged[key] = { ...prev[key], ...patch[key] } as never;
             }
             state.deck.theme = merged;
+            state.isDirty = true;
+          }),
+
+        updatePageNumbers: (patch) =>
+          set((state) => {
+            assert(state.deck !== null, "No deck loaded");
+            state.deck.pageNumbers = { ...state.deck.pageNumbers, ...patch } as PageNumberConfig;
             state.isDirty = true;
           }),
 

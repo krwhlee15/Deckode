@@ -1,10 +1,11 @@
 import { useMemo, memo } from "react";
-import type { Slide, Animation, DeckTheme } from "@/types/deck";
+import type { Slide, Animation, DeckTheme, PageNumberConfig } from "@/types/deck";
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from "@/types/deck";
 import type { AnimationStep } from "@/utils/animationSteps";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { useAssetUrl } from "@/contexts/AdapterContext";
 import { ElementRenderer } from "./ElementRenderer";
+import { PageNumber } from "./PageNumber";
 
 interface Props {
   slide: Slide;
@@ -27,9 +28,11 @@ interface Props {
   previewKey?: number;
   /** Suppress video autoplay in editor */
   editorMode?: boolean;
+  /** Page number info (omit to hide) */
+  pageNumberInfo?: { pageNumber: number; totalPages: number; config: PageNumberConfig };
 }
 
-export const SlideRenderer = memo(function SlideRenderer({ slide, scale, animate, thumbnail, activeStep, steps, onAdvance, theme, previewAnimations, previewDelayOverrides, previewKey, editorMode }: Props) {
+export const SlideRenderer = memo(function SlideRenderer({ slide, scale, animate, thumbnail, activeStep, steps, onAdvance, theme, previewAnimations, previewDelayOverrides, previewKey, editorMode, pageNumberInfo }: Props) {
   const bg = slide.background;
   const themeBgColor = theme?.slide?.background?.color;
   const resolvedBgImage = useAssetUrl(bg?.image);
@@ -117,6 +120,13 @@ export const SlideRenderer = memo(function SlideRenderer({ slide, scale, animate
             editorMode={editorMode}
           />
         ))}
+        {!thumbnail && pageNumberInfo && (
+          <PageNumber
+            pageNumber={pageNumberInfo.pageNumber}
+            totalPages={pageNumberInfo.totalPages}
+            config={pageNumberInfo.config}
+          />
+        )}
       </div>
     </div>
   );

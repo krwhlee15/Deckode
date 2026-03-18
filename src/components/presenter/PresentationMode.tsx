@@ -6,7 +6,8 @@ import { useAdapter } from "@/contexts/AdapterContext";
 import { computeSteps } from "@/utils/animationSteps";
 import type { AnimationStep } from "@/utils/animationSteps";
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from "@/types/deck";
-import type { Deck, Slide, SlideTransition, DeckTheme } from "@/types/deck";
+import type { Deck, Slide, SlideTransition, DeckTheme, PageNumberConfig } from "@/types/deck";
+import { getPageNumberInfo } from "@/utils/pageNumbers";
 import type { FsAccessAdapter } from "@/adapters/fsAccess";
 import { AnimatePresence, motion } from "framer-motion";
 import { MorphTransition } from "@/components/renderer/MorphTransition";
@@ -501,6 +502,7 @@ function PresenterConsole({
                 activeStep={activeStep}
                 steps={steps}
                 onAdvance={onAdvance}
+                pageNumberInfo={getPageNumberInfo(deck, currentSlideIndex)}
               />
             ) : (
               <SlideRenderer
@@ -512,6 +514,7 @@ function PresenterConsole({
                 steps={steps}
                 onAdvance={onAdvance}
                 theme={deck.theme}
+                pageNumberInfo={getPageNumberInfo(deck, currentSlideIndex)}
               />
             )}
             {/* Local laser pointer dot */}
@@ -768,6 +771,7 @@ function AudienceSlideViewer({
             activeStep={activeStep}
             steps={steps}
             onAdvance={onAdvance}
+            pageNumberInfo={getPageNumberInfo(deck, currentSlideIndex)}
           />
         ) : (
           <AnimatePresence mode="wait">
@@ -785,6 +789,7 @@ function AudienceSlideViewer({
                 steps={steps}
                 onAdvance={onAdvance}
                 theme={deck?.theme}
+                pageNumberInfo={getPageNumberInfo(deck, currentSlideIndex)}
               />
             </motion.div>
           </AnimatePresence>
@@ -817,6 +822,7 @@ function StableSlideContent({
   steps,
   onAdvance,
   theme,
+  pageNumberInfo,
 }: {
   slide: Slide;
   scale: number;
@@ -824,6 +830,7 @@ function StableSlideContent({
   steps: AnimationStep[];
   onAdvance: () => void;
   theme?: DeckTheme;
+  pageNumberInfo?: { pageNumber: number; totalPages: number; config: PageNumberConfig };
 }) {
   const mountSlideId = useRef(slide.id);
   const cachedStep = useRef(activeStep);
@@ -842,6 +849,7 @@ function StableSlideContent({
       steps={steps}
       onAdvance={onAdvance}
       theme={theme}
+      pageNumberInfo={pageNumberInfo}
     />
   );
 }

@@ -143,11 +143,14 @@ export function SelectionOverlay({ slide, scale }: Props) {
             // so first click-drag on a group member works immediately.
             const latestSelected = useDeckStore.getState().selectedElementIds;
             const allIds = new Set(latestSelected);
-            for (const id of latestSelected) {
-              const el = slide.elements.find((e) => e.id === id);
-              if (el?.groupId) {
-                for (const m of slide.elements) {
-                  if (m.groupId === el.groupId) allIds.add(m.id);
+            // Only expand to group members when multiple are selected (not isolate-select)
+            if (latestSelected.length > 1) {
+              for (const id of latestSelected) {
+                const el = slide.elements.find((e) => e.id === id);
+                if (el?.groupId) {
+                  for (const m of slide.elements) {
+                    if (m.groupId === el.groupId) allIds.add(m.id);
+                  }
                 }
               }
             }

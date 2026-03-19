@@ -392,15 +392,14 @@ export function PresentationMode({ onExit }: PresentationModeProps) {
   const jumpToVisibleSlide = useCallback((visibleIdx: number, skipAnim?: boolean) => {
     const vs = visibleSlidesRef.current;
     if (visibleIdx >= 0 && visibleIdx < vs.length) {
+      skipStepResetRef.current = true;
+      setCurrentSlide(vs[visibleIdx]!.originalIndex);
       if (skipAnim) {
-        // Compute steps for the target slide and jump to the end
         const targetSlide = vs[visibleIdx]!.slide;
         const targetSteps = computeSteps(targetSlide.animations ?? []);
-        skipStepResetRef.current = true;
-        setCurrentSlide(vs[visibleIdx]!.originalIndex);
         setActiveStep(targetSteps.length);
       } else {
-        setCurrentSlide(vs[visibleIdx]!.originalIndex);
+        setActiveStep(0);
       }
     }
   }, [setCurrentSlide]);
@@ -489,7 +488,7 @@ function PresenterConsole({
   const noteTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   const [skipAnim, setSkipAnim] = useState(false);
-  const [bookmarksOpen, setBookmarksOpen] = useState(true);
+
 
   // Bookmarked visible slides
   const bookmarks = useMemo(() => {
@@ -590,6 +589,34 @@ function PresenterConsole({
     >
       {/* Main area */}
       <div className="flex-1 flex overflow-hidden min-h-0">
+        {/* Bookmarks panel (left) */}
+        {bookmarks.length > 0 && (
+          <div className="flex flex-col border-r border-zinc-800 shrink-0" style={{ width: 160 }}>
+            <div className="px-3 py-1.5 text-xs font-semibold text-zinc-500 uppercase tracking-wider border-b border-zinc-800 shrink-0">
+              Bookmarks ({bookmarks.length})
+            </div>
+            <div className="flex-1 overflow-y-auto px-2 py-1.5 space-y-0.5 min-h-0">
+              {bookmarks.map((b) => {
+                const isCurrent = b.visibleIdx === currentSlideIndex;
+                return (
+                  <button
+                    key={b.slide.id}
+                    onClick={() => onJumpTo(b.visibleIdx, skipAnim)}
+                    className={`w-full text-left px-2 py-1 rounded text-xs transition-colors flex items-center gap-1.5 ${
+                      isCurrent
+                        ? "bg-blue-600/20 text-blue-300"
+                        : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
+                    }`}
+                  >
+                    <span className="text-zinc-600 font-mono w-4 text-right shrink-0">{b.visibleIdx + 1}</span>
+                    <span className="truncate">{b.slide.bookmark}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Current slide */}
         <div className="flex items-center justify-center p-4" style={{ width: `${slideFraction * 100}%` }}>
           <div
@@ -686,40 +713,6 @@ function PresenterConsole({
               </div>
             )}
           </div>
-
-          {/* Bookmarks */}
-          {bookmarks.length > 0 && (
-            <div className="border-b border-zinc-800 shrink-0">
-              <button
-                onClick={() => setBookmarksOpen((o) => !o)}
-                className="w-full flex items-center justify-between px-4 py-1.5 text-xs font-semibold text-zinc-500 uppercase tracking-wider hover:bg-zinc-800/50 transition-colors"
-              >
-                <span>Bookmarks ({bookmarks.length})</span>
-                <span className="text-zinc-600">{bookmarksOpen ? "\u2212" : "+"}</span>
-              </button>
-              {bookmarksOpen && (
-                <div className="px-2 pb-2 space-y-0.5">
-                  {bookmarks.map((b) => {
-                    const isCurrent = b.visibleIdx === currentSlideIndex;
-                    return (
-                      <button
-                        key={b.slide.id}
-                        onClick={() => onJumpTo(b.visibleIdx, skipAnim)}
-                        className={`w-full text-left px-2 py-1 rounded text-xs transition-colors flex items-center gap-2 ${
-                          isCurrent
-                            ? "bg-blue-600/20 text-blue-300"
-                            : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
-                        }`}
-                      >
-                        <span className="text-zinc-600 font-mono w-5 text-right shrink-0">{b.visibleIdx + 1}</span>
-                        <span className="truncate">{b.slide.bookmark}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
 
           {/* Speaker notes with animation-aware highlighting */}
           <div className="flex-1 overflow-y-auto p-4 min-h-0 flex flex-col">

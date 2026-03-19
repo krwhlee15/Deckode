@@ -207,8 +207,8 @@ Grouping is flat (1-level only). Grouping elements that already belong to differ
   "id": "arrow-1",
   "type": "shape", "shape": "arrow",
   "position": { "x": 240, "y": 155 },
-  "size": { "w": 80, "h": 20 },
-  "style": { "stroke": "#64748b", "strokeWidth": 2 },
+  "size": { "w": 80, "h": 1 },
+  "style": { "stroke": "#64748b", "strokeWidth": 2, "waypoints": [{ "x": 0, "y": 0 }, { "x": 80, "y": 0 }] },
   "groupId": "group-arrow-1"
 },
 {
@@ -431,9 +431,9 @@ Renders a geometric shape.
 | `markerStart` | `"none"` \| `"arrow"` \| `"circle"` | `"none"` | Start marker (line/arrow only) |
 | `markerEnd` | `"none"` \| `"arrow"` \| `"circle"` | `"none"` (`"arrow"` for `shape: "arrow"`) | End marker (line/arrow only) |
 | `path` | string | — | SVG path `d` attribute for custom line routing (line/arrow only). When absent, line is straight horizontal. |
-| `waypoints` | `{x,y}[]` | — | Polyline waypoints in element-local coords (line/arrow only). 2+ points renders a polyline. Takes priority over `path`. |
+| `waypoints` | `{x,y}[]` | **yes** (line/arrow) | Polyline waypoints in element-local coords (line/arrow only). **Always provide at least 2 points.** Takes priority over `path`. |
 
-For `"line"` and `"arrow"`: `position` is the start point. The line extends horizontally by `size.w` pixels. `size.h` is ignored for straight horizontal lines (set to a small value like `1`). The `"arrow"` shape is shorthand for `"line"` with `markerEnd: "arrow"`. Use `markerStart`/`markerEnd` for fine-grained control. **Never use `rotation` on line/arrow elements** — the code asserts against this. Use `waypoints` to control line direction instead.
+For `"line"` and `"arrow"`: `position` is the bounding box origin. **Always specify `waypoints`** with at least 2 points — they define the actual line path in element-local coordinates (relative to `position`). `size` is the bounding box enclosing the waypoints. The `"arrow"` shape is shorthand for `"line"` with `markerEnd: "arrow"`. Use `markerStart`/`markerEnd` for fine-grained control. **Never use `rotation` on line/arrow elements** — the code asserts against this. Use `waypoints` to control line direction instead.
 
 **Line example** (horizontal divider):
 ```json
@@ -442,8 +442,8 @@ For `"line"` and `"arrow"`: `position` is the start point. The line extends hori
   "type": "shape",
   "shape": "line",
   "position": { "x": 60, "y": 260 },
-  "size": { "w": 840, "h": 4 },
-  "style": { "stroke": "#475569", "strokeWidth": 1 }
+  "size": { "w": 840, "h": 1 },
+  "style": { "stroke": "#475569", "strokeWidth": 1, "waypoints": [{ "x": 0, "y": 0 }, { "x": 840, "y": 0 }] }
 }
 ```
 
@@ -454,8 +454,8 @@ For `"line"` and `"arrow"`: `position` is the start point. The line extends hori
   "type": "shape",
   "shape": "arrow",
   "position": { "x": 200, "y": 300 },
-  "size": { "w": 560, "h": 4 },
-  "style": { "stroke": "#3b82f6", "strokeWidth": 3 }
+  "size": { "w": 560, "h": 1 },
+  "style": { "stroke": "#3b82f6", "strokeWidth": 3, "waypoints": [{ "x": 0, "y": 0 }, { "x": 560, "y": 0 }] }
 }
 ```
 
@@ -466,8 +466,8 @@ For `"line"` and `"arrow"`: `position` is the start point. The line extends hori
   "type": "shape",
   "shape": "line",
   "position": { "x": 100, "y": 270 },
-  "size": { "w": 300, "h": 4 },
-  "style": { "stroke": "#8b5cf6", "strokeWidth": 2, "markerStart": "arrow", "markerEnd": "arrow" }
+  "size": { "w": 300, "h": 1 },
+  "style": { "stroke": "#8b5cf6", "strokeWidth": 2, "markerStart": "arrow", "markerEnd": "arrow", "waypoints": [{ "x": 0, "y": 0 }, { "x": 300, "y": 0 }] }
 }
 ```
 
@@ -478,12 +478,12 @@ For `"line"` and `"arrow"`: `position` is the start point. The line extends hori
   "type": "shape",
   "shape": "line",
   "position": { "x": 100, "y": 300 },
-  "size": { "w": 200, "h": 4 },
-  "style": { "stroke": "#06b6d4", "strokeWidth": 2, "markerStart": "circle", "markerEnd": "arrow" }
+  "size": { "w": 200, "h": 1 },
+  "style": { "stroke": "#06b6d4", "strokeWidth": 2, "markerStart": "circle", "markerEnd": "arrow", "waypoints": [{ "x": 0, "y": 0 }, { "x": 200, "y": 0 }] }
 }
 ```
 
-**Curved path** (SVG `d` attribute):
+**Curved path** (SVG `d` attribute — exception: `path` does not need `waypoints`):
 ```json
 {
   "id": "curve",
@@ -502,7 +502,7 @@ For `"line"` and `"arrow"`: `position` is the start point. The line extends hori
   "type": "shape",
   "shape": "arrow",
   "position": { "x": 100, "y": 100 },
-  "size": { "w": 300, "h": 200 },
+  "size": { "w": 300, "h": 100 },
   "style": {
     "stroke": "#10b981", "strokeWidth": 2,
     "waypoints": [{"x": 0, "y": 100}, {"x": 150, "y": 100}, {"x": 150, "y": 0}, {"x": 300, "y": 0}]
@@ -510,7 +510,11 @@ For `"line"` and `"arrow"`: `position` is the start point. The line extends hori
 }
 ```
 
-Waypoints are in element-local coordinates (relative to `position`). They can extend beyond the element's bounding box. In the editor, select a line/arrow and use the Property Panel to add waypoints, then drag the green handles on the canvas. Rendering priority: `waypoints` (2+ points) > `path` > straight line.
+Waypoints are in element-local coordinates (relative to `position`). `size` should be the bounding box that encloses all waypoints. Waypoints can extend beyond the bounding box (the SVG uses `overflow: visible`). In the editor, select a line/arrow and use the Property Panel to add waypoints, then drag the green handles on the canvas.
+
+**Migrating old line/arrow elements**: Older deck.json files may have line/arrow elements without `waypoints`. To migrate:
+- If the element has no `waypoints` and no `path`, it was a horizontal line drawn at `y = size.h / 2`. Add `"waypoints": [{ "x": 0, "y": 0 }, { "x": size.w, "y": 0 }]` and set `"size.h": 1`. Adjust `position.y` by subtracting the old `size.h / 2` to preserve the visual position.
+- Example: `{ "position": { "x": 100, "y": 260 }, "size": { "w": 300, "h": 4 } }` becomes `{ "position": { "x": 100, "y": 262 }, "size": { "w": 300, "h": 1 }, "style": { ..., "waypoints": [{ "x": 0, "y": 0 }, { "x": 300, "y": 0 }] } }` (y shifted by +2 to match old `h/2` offset).
 
 **Export limitations**: The `path` and `waypoints` fields are fully rendered in the editor and HTML-based PDF export. Native PDF export draws waypoint line segments. PPTX export falls back to a straight line between first and last waypoint.
 
@@ -668,12 +672,12 @@ For **flow diagrams, pipeline diagrams, and block-and-arrow layouts**, prefer **
   "type": "shape", "shape": "arrow",
   "position": { "x": 340, "y": 155 },
   "size": { "w": 60, "h": 1 },
-  "style": { "stroke": "#7c3aed", "strokeWidth": 2 }
+  "style": { "stroke": "#7c3aed", "strokeWidth": 2, "waypoints": [{ "x": 0, "y": 0 }, { "x": 60, "y": 0 }] }
 }
 ```
 
-**Arrow directions via `waypoints`:**
-- Right (default): `waypoints` omitted (straight horizontal line from `position`)
+**Arrow directions via `waypoints`** (always required):
+- Right: `"waypoints": [{ "x": 0, "y": 0 }, { "x": 60, "y": 0 }]`
 - Down: `"size": { "w": 1, "h": 60 }` with `"waypoints": [{ "x": 0, "y": 0 }, { "x": 0, "y": 60 }]`
 - Left: `"waypoints": [{ "x": 60, "y": 0 }, { "x": 0, "y": 0 }]` (reverses marker direction)
 - Up: `"size": { "w": 1, "h": 60 }` with `"waypoints": [{ "x": 0, "y": 60 }, { "x": 0, "y": 0 }]`
@@ -684,7 +688,7 @@ If the arrow has a label, group them together:
 {
   "id": "arrow-yes", "type": "shape", "shape": "arrow",
   "position": { "x": 510, "y": 340 }, "size": { "w": 80, "h": 1 },
-  "style": { "stroke": "#22c55e", "strokeWidth": 2 },
+  "style": { "stroke": "#22c55e", "strokeWidth": 2, "waypoints": [{ "x": 0, "y": 0 }, { "x": 80, "y": 0 }] },
   "groupId": "group-arrow-yes"
 },
 {
@@ -703,7 +707,7 @@ If the arrow has a label, group them together:
   "style": { "stroke": "#7c3aed", "strokeWidth": 2, "waypoints": [{ "x": 0, "y": 0 }, { "x": 0, "y": 40 }] } },
 { "id": "fb-horiz", "type": "shape", "shape": "line",
   "position": { "x": 270, "y": 100 }, "size": { "w": 536, "h": 1 },
-  "style": { "stroke": "#7c3aed", "strokeWidth": 2 } },
+  "style": { "stroke": "#7c3aed", "strokeWidth": 2, "waypoints": [{ "x": 0, "y": 0 }, { "x": 536, "y": 0 }] } },
 { "id": "fb-left", "type": "shape", "shape": "line",
   "position": { "x": 269, "y": 100 }, "size": { "w": 1, "h": 40 },
   "style": { "stroke": "#7c3aed", "strokeWidth": 2, "waypoints": [{ "x": 0, "y": 0 }, { "x": 0, "y": 40 }] } }

@@ -191,9 +191,9 @@ export function ShapeElementRenderer({ element }: Props) {
         ) : (
           <line
             x1={shortenStart}
-            y1={h / 2}
+            y1={0}
             x2={w - shortenEnd}
-            y2={h / 2}
+            y2={0}
             stroke={strokeColor}
             strokeOpacity={sOp}
             strokeWidth={sw}

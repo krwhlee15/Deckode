@@ -57,8 +57,8 @@ const ELEMENT_PRESETS: { label: string; create: () => SlideElement }[] = [
       type: "shape" as const,
       shape: "line" as const,
       position: { x: 100, y: 270 },
-      size: { w: 300, h: 4 },
-      style: { strokeWidth: 2 },
+      size: { w: 300, h: 1 },
+      style: { strokeWidth: 2, waypoints: [{ x: 0, y: 0 }, { x: 300, y: 0 }] },
     }),
   },
   {
@@ -68,8 +68,8 @@ const ELEMENT_PRESETS: { label: string; create: () => SlideElement }[] = [
       type: "shape" as const,
       shape: "arrow" as const,
       position: { x: 100, y: 270 },
-      size: { w: 300, h: 4 },
-      style: { strokeWidth: 2 },
+      size: { w: 300, h: 1 },
+      style: { strokeWidth: 2, waypoints: [{ x: 0, y: 0 }, { x: 300, y: 0 }] },
     }),
   },
   {

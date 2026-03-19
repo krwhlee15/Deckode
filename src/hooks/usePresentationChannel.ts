@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import type { Deck } from "@/types/deck";
 
 export type PresentMessage =
@@ -73,25 +73,25 @@ export function usePresentationChannel(callbacks: Callbacks) {
     };
   }, []);
 
-  const postNavigate = (slideIndex: number, activeStep: number) => {
+  const postNavigate = useCallback((slideIndex: number, activeStep: number) => {
     channelRef.current?.postMessage({
       type: "navigate",
       slideIndex,
       activeStep,
     } satisfies PresentMessage);
-  };
+  }, []);
 
-  const postExit = () => {
+  const postExit = useCallback(() => {
     channelRef.current?.postMessage({ type: "exit" } satisfies PresentMessage);
-  };
+  }, []);
 
-  const postSyncRequest = () => {
+  const postSyncRequest = useCallback(() => {
     channelRef.current?.postMessage({
       type: "sync-request",
     } satisfies PresentMessage);
-  };
+  }, []);
 
-  const postSyncDeck = (
+  const postSyncDeck = useCallback((
     deck: Deck,
     project: string,
     slideIndex: number,
@@ -108,25 +108,25 @@ export function usePresentationChannel(callbacks: Callbacks) {
       assetMap,
       assetBaseUrl,
     } satisfies PresentMessage);
-  };
+  }, []);
 
-  const postPointer = (x: number, y: number, visible: boolean) => {
+  const postPointer = useCallback((x: number, y: number, visible: boolean) => {
     channelRef.current?.postMessage({
       type: "pointer",
       x,
       y,
       visible,
     } satisfies PresentMessage);
-  };
+  }, []);
 
-  const postVideoControl = (elementId: string, action: "play" | "pause", currentTime: number) => {
+  const postVideoControl = useCallback((elementId: string, action: "play" | "pause", currentTime: number) => {
     channelRef.current?.postMessage({
       type: "video-control",
       elementId,
       action,
       currentTime,
     } satisfies PresentMessage);
-  };
+  }, []);
 
   return { postNavigate, postExit, postSyncRequest, postSyncDeck, postPointer, postVideoControl };
 }

@@ -44,7 +44,7 @@ export function SelectionOverlay({ slide, scale }: Props) {
   const commentedElementIds = useMemo(() => {
     const ids = new Set<string>();
     for (const c of slide.comments ?? []) {
-      if (c.elementId) ids.add(c.elementId);
+      if (c.elementId && c.category !== "done") ids.add(c.elementId);
     }
     return ids;
   }, [slide.comments]);

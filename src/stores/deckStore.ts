@@ -80,7 +80,7 @@ interface DeckState {
   deleteAnimation: (slideId: string, index: number) => void;
   moveAnimation: (slideId: string, fromIndex: number, toIndex: number) => void;
   addComment: (slideId: string, comment: Comment) => void;
-  updateComment: (slideId: string, commentId: string, text: string) => void;
+  updateComment: (slideId: string, commentId: string, patch: { text?: string; category?: Comment["category"] | "" }) => void;
   deleteComment: (slideId: string, commentId: string) => void;
   updateTheme: (patch: Partial<DeckTheme>) => void;
   updatePageNumbers: (patch: Partial<PageNumberConfig>) => void;
@@ -543,14 +543,15 @@ export const useDeckStore = create<DeckState>()(
             state.isDirty = true;
           }),
 
-        updateComment: (slideId, commentId, text) =>
+        updateComment: (slideId, commentId, patch) =>
           set((state) => {
             assert(state.deck !== null, "No deck loaded");
             const slide = getSlide(state.deck.slides, slideId);
             assert(slide.comments !== undefined, `Slide ${slideId} has no comments`);
             const comment = slide.comments.find(c => c.id === commentId);
             assert(comment !== undefined, `Comment ${commentId} not found`);
-            comment.text = text;
+            if (patch.text !== undefined) comment.text = patch.text;
+            if ("category" in patch) comment.category = patch.category || undefined;
             state.isDirty = true;
           }),
 

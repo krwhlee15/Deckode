@@ -9,6 +9,7 @@ const CATEGORIES: { value: CommentCategory; label: string; color: string }[] = [
   { value: "bug", label: "Bug", color: "#ef4444" },
   { value: "todo", label: "Todo", color: "#3b82f6" },
   { value: "question", label: "Question", color: "#10b981" },
+  { value: "done", label: "Done", color: "#6b7280" },
 ];
 
 const CATEGORY_MAP = new Map(CATEGORIES.map((c) => [c.value, c]));
@@ -43,9 +44,12 @@ export function CommentList({ slideId, elementId }: Props) {
   const allComments = slide?.comments ?? [];
 
   // Filter: element view shows only that element's comments; slide view shows all
-  const comments = elementId
+  // "done" comments are hidden from the list
+  const comments = (elementId
     ? allComments.filter((c) => c.elementId === elementId)
-    : [...allComments].sort((a, b) => a.createdAt - b.createdAt);
+    : [...allComments].sort((a, b) => a.createdAt - b.createdAt)
+  ).filter((c) => c.category !== "done");
+  const doneCount = allComments.filter((c) => c.category === "done" && (elementId ? c.elementId === elementId : true)).length;
 
   const [draft, setDraft] = useState("");
   const [authorName, setAuthorName] = useState("user");
@@ -90,7 +94,7 @@ export function CommentList({ slideId, elementId }: Props) {
 
   const commitEdit = () => {
     if (editingId && editText.trim()) {
-      updateComment(slideId, editingId, editText.trim());
+      updateComment(slideId, editingId, { text: editText.trim() });
     }
     setEditingId(null);
   };
@@ -116,7 +120,10 @@ export function CommentList({ slideId, elementId }: Props) {
 
   return (
     <div>
-      <FieldLabel>Comments{comments.length > 0 ? ` (${comments.length})` : ""}</FieldLabel>
+      <FieldLabel>
+        Comments{comments.length > 0 ? ` (${comments.length})` : ""}
+        {doneCount > 0 && <span className="text-zinc-600 font-normal normal-case tracking-normal ml-1">+ {doneCount} done</span>}
+      </FieldLabel>
 
       {comments.length > 0 && (
         <div className="space-y-1.5 mb-2">
@@ -179,21 +186,38 @@ export function CommentList({ slideId, elementId }: Props) {
                     onBlur={commitEdit}
                   />
                 ) : (
-                  <div className="flex items-start gap-1">
-                    <p className="text-xs text-zinc-200/90 whitespace-pre-wrap flex-1 break-words">
+                  <div>
+                    <p className="text-xs text-zinc-200/90 whitespace-pre-wrap break-words">
                       {comment.text}
                     </p>
-                    <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                    <div className="flex items-center gap-1 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      {/* Category switcher */}
+                      {CATEGORIES.map((c) => (
+                        <button
+                          key={c.value}
+                          onClick={() => updateComment(slideId, comment.id, { category: comment.category === c.value ? "" : c.value })}
+                          className="text-[9px] px-1 py-px rounded transition-colors"
+                          style={
+                            comment.category === c.value
+                              ? { backgroundColor: `${c.color}30`, color: c.color }
+                              : { color: "#52525b" }
+                          }
+                          title={c.label}
+                        >
+                          {c.label}
+                        </button>
+                      ))}
+                      <span className="text-zinc-800 mx-0.5">|</span>
                       <button
                         onClick={() => startEdit(comment)}
-                        className="text-[10px] text-zinc-500 hover:text-zinc-300 px-1"
+                        className="text-[10px] text-zinc-500 hover:text-zinc-300 px-0.5"
                         title="Edit"
                       >
                         edit
                       </button>
                       <button
                         onClick={() => deleteComment(slideId, comment.id)}
-                        className="text-[10px] text-zinc-500 hover:text-red-400 px-1"
+                        className="text-[10px] text-zinc-500 hover:text-red-400 px-0.5"
                         title="Delete"
                       >
                         del

@@ -232,7 +232,7 @@ export function SlideList() {
               isSelected={selectedSlideIds.includes(slide.id)}
               isVisible={index === currentSlideIndex || visibleIds.has(slide.id)}
               observeRef={observe}
-              hasComments={!!slide.comments?.length}
+              hasComments={!!slide.comments?.some((c) => c.category !== "done")}
               onSelect={(e: React.MouseEvent) => {
                 if (e.ctrlKey || e.metaKey) {
                   // Toggle in/out of selection

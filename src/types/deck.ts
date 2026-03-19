@@ -303,7 +303,7 @@ export interface Animation {
 
 // ----- Comments -----
 
-export type CommentCategory = "content" | "design" | "bug" | "todo" | "question";
+export type CommentCategory = "content" | "design" | "bug" | "todo" | "question" | "done";
 
 export interface Comment {
   id: string;

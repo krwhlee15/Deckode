@@ -73,8 +73,19 @@ export function PropertyPanel() {
       {/* Element info */}
       <div>
         <FieldLabel>Element</FieldLabel>
-        <div className="text-zinc-300 font-mono">
-          {element.type} / {element.id}
+        <div className="flex items-center gap-1.5">
+          <span className="text-zinc-300 font-mono text-xs">
+            {element.type} / {element.id}
+          </span>
+          <button
+            onClick={() => {
+              navigator.clipboard.writeText(element.id);
+            }}
+            className="text-[10px] px-1 py-0.5 rounded bg-zinc-800 text-zinc-500 hover:text-zinc-200 hover:bg-zinc-700 transition-colors shrink-0"
+            title="Copy element ID"
+          >
+            ID
+          </button>
         </div>
       </div>
 

@@ -107,6 +107,10 @@ interface DeckState {
 let highlightTimer: ReturnType<typeof setTimeout> | null = null;
 let isDragging = false;
 
+// Snapshot of the deck at last save/load — used for three-way merge
+let _lastSavedDeck: Deck | null = null;
+export function getLastSavedDeck(): Deck | null { return _lastSavedDeck; }
+
 // Hoisted so we can cancel the pending batch on project switch
 let batchTimeout: ReturnType<typeof setTimeout> | null = null;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -154,6 +158,7 @@ export const useDeckStore = create<DeckState>()(
         openProject: (project, deck) => {
           syncCounters(deck);
           setTabProject(project);
+          _lastSavedDeck = structuredClone(deck);
           const restoredIndex = loadSlideIndex(project, deck.slides.length);
           set((state) => {
             state.currentProject = project;
@@ -185,6 +190,7 @@ export const useDeckStore = create<DeckState>()(
 
         loadDeck: (deck) => {
           syncCounters(deck);
+          _lastSavedDeck = structuredClone(deck);
           set((state) => {
             state.deck = deck;
             // Preserve current slide position (clamp if slides were removed)
@@ -227,17 +233,18 @@ export const useDeckStore = create<DeckState>()(
 
           // GC: remove unused components + strip legacy `size` field before serialization
           let deckToSave = get().deck!;
-          if (deckToSave.components && Object.keys(deckToSave.components).length > 0) {
+          const hasComponents = deckToSave.components && Object.keys(deckToSave.components).length > 0;
+          if (hasComponents) {
             const usedIds = new Set<string>();
             for (const slide of deckToSave.slides) {
               for (const el of slide.elements) {
                 if (el.type === "reference") usedIds.add((el as ReferenceElement).componentId);
               }
             }
-            const allIds = Object.keys(deckToSave.components);
+            const allIds = Object.keys(deckToSave.components!);
             const unused = allIds.filter((id) => !usedIds.has(id));
-            // Always clone to strip legacy `size` from components
-            deckToSave = JSON.parse(JSON.stringify(deckToSave));
+            // Only clone if GC is needed
+            deckToSave = structuredClone(deckToSave);
             for (const id of unused) delete deckToSave.components![id];
             if (Object.keys(deckToSave.components!).length === 0) {
               delete deckToSave.components;
@@ -255,6 +262,8 @@ export const useDeckStore = create<DeckState>()(
             console.error("[deckStore] saveToDisk failed:", err);
           } finally {
             _activeSave = null;
+            const currentDeck = get().deck;
+            if (currentDeck) _lastSavedDeck = structuredClone(currentDeck);
             set((state) => { state.isSaving = false; state.isDirty = false; });
           }
 

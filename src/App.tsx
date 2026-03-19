@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
-import { useDeckStore } from "@/stores/deckStore";
+import { useDeckStore, getLastSavedDeck } from "@/stores/deckStore";
 import { setStoreAdapter } from "@/stores/deckStore";
+import { mergeDeck } from "@/utils/deckDiff";
 import { EditorLayout } from "@/components/editor/EditorLayout";
 import { PresenterView } from "@/components/presenter/PresenterView";
 import { ViewOnlyPresentation } from "@/components/presenter/ViewOnlyPresentation";
@@ -167,6 +168,29 @@ export function App() {
     }
   }, [currentProject]);
 
+  // Try element-level merge; fall back to conflict dialog if same element modified both sides
+  const tryMerge = useCallback((remoteDeck: Deck) => {
+    const state = useDeckStore.getState();
+    const base = getLastSavedDeck();
+    const local = state.deck;
+
+    // No base snapshot or no local deck → full reload
+    if (!base || !local) {
+      useDeckStore.getState().loadDeck(remoteDeck);
+      return;
+    }
+
+    const result = mergeDeck(base, local, remoteDeck);
+    if (result.merged) {
+      // No conflicts → apply merged deck silently
+      useDeckStore.getState().loadDeck(result.merged);
+    } else {
+      // Conflicts exist → show dialog
+      useDeckStore.getState().setSavePaused(true);
+      setExternalChange(true);
+    }
+  }, []);
+
   // HMR: reload deck when deck.json changes on disk (dev mode only)
   useEffect(() => {
     if (!IS_DEV || !import.meta.hot) return;
@@ -174,20 +198,15 @@ export function App() {
       const state = useDeckStore.getState();
       if (data.project !== state.currentProject || !adapter) return;
 
-      if (!state.isDirty) {
-        adapter.loadDeck().then((deck) => {
-          useDeckStore.getState().loadDeck(deck);
-        });
-      } else {
-        useDeckStore.getState().setSavePaused(true);
-        setExternalChange(true);
-      }
+      adapter.loadDeck().then((remoteDeck) => {
+        tryMerge(remoteDeck);
+      });
     };
     import.meta.hot.on("deckode:deck-changed", handler);
     return () => {
       import.meta.hot!.off("deckode:deck-changed", handler);
     };
-  }, [adapter]);
+  }, [adapter, tryMerge]);
 
   // Polling: detect external deck.json changes in fs-access mode
   const lastModifiedRef = useRef(0);
@@ -213,20 +232,14 @@ export function App() {
       const fileHash = fnv1aHash(text);
       if (fileHash === fsAdapter.lastSaveHash) return; // our own save
 
-      const state = useDeckStore.getState();
-      if (!state.isDirty) {
-        fsAdapter.loadDeck().then((deck) => {
-          useDeckStore.getState().loadDeck(deck);
-        });
-      } else {
-        useDeckStore.getState().setSavePaused(true);
-        setExternalChange(true);
-      }
+      fsAdapter.loadDeck().then((remoteDeck) => {
+        tryMerge(remoteDeck);
+      });
     };
 
     const id = setInterval(poll, 2000);
     return () => clearInterval(id);
-  }, [adapter]);
+  }, [adapter, tryMerge]);
 
   const handleReloadExternal = useCallback(() => {
     if (!adapter) return;

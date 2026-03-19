@@ -62,8 +62,8 @@ export function useAssetUrl(src: string | undefined): string | undefined {
     const result = adapter.resolveAssetUrl(src);
     if (typeof result === "string") {
       setUrl(result);
-    } else {
-      result.then(setUrl);
+    } else if (result !== undefined) {
+      result.then((v) => setUrl(v ?? undefined)).catch(() => setUrl(undefined));
     }
   }, [src, adapter]);
 

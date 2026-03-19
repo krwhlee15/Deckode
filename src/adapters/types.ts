@@ -24,7 +24,7 @@ export interface FileSystemAdapter {
   createProject(name: string, config: NewProjectConfig): Promise<void>;
   deleteProject(name: string): Promise<void>;
   uploadAsset(file: File): Promise<string>;
-  resolveAssetUrl(path: string): string | Promise<string>;
+  resolveAssetUrl(path: string): string | undefined | Promise<string | undefined>;
   renderTikz(
     elementId: string,
     content: string,

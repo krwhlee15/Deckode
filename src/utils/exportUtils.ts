@@ -32,7 +32,8 @@ export async function resolveAssetSrc(
   adapter: FileSystemAdapter,
 ): Promise<string> {
   const result = adapter.resolveAssetUrl(src);
-  return typeof result === "string" ? result : await result;
+  const resolved = typeof result === "string" ? result : await result;
+  return resolved ?? src;
 }
 
 // ----

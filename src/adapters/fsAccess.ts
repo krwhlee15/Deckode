@@ -235,7 +235,7 @@ export class FsAccessAdapter implements FileSystemAdapter {
     return storedPath;
   }
 
-  async resolveAssetUrl(path: string): Promise<string> {
+  async resolveAssetUrl(path: string): Promise<string | undefined> {
     const cached = this.blobUrlCache_.get(path);
     if (cached) return cached;
 
@@ -274,12 +274,12 @@ export class FsAccessAdapter implements FileSystemAdapter {
     try {
       fileHandle = await dir.getFileHandle(sanitizedName);
     } catch {
-      // File not found — it may have been uploaded in dev mode and doesn't
-      // exist in this directory. Re-throw with context.
-      throw new Error(
+      // File not found — return undefined so <img onError> can trigger re-render
+      console.warn(
         `[FsAccessAdapter] Asset not found: "${sanitizedName}" (path: "${path}"). ` +
-        `The file may have been uploaded via the dev server and is not present in the opened folder.`
+        `The file may have been uploaded via the dev server or deleted.`
       );
+      return undefined;
     }
     const file = await fileHandle.getFile();
     const blobUrl = URL.createObjectURL(file);

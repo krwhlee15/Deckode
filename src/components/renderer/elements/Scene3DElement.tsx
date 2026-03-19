@@ -1,7 +1,27 @@
 import { useRef, useMemo } from "react";
-import { Canvas, useFrame } from "@react-three/fiber";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, Text, Grid, Line } from "@react-three/drei";
 import * as THREE from "three";
+
+// ── Scene snapshot cache ──
+const scene3dFrameCache = new Map<string, string>();
+
+/** Captures the WebGL canvas after first render and stores as blob URL */
+function FrameCapturer({ elementId }: { elementId: string }) {
+  const { gl } = useThree();
+  const captured = useRef(false);
+
+  useFrame(() => {
+    if (captured.current || scene3dFrameCache.has(elementId)) return;
+    captured.current = true;
+    try {
+      const dataUrl = gl.domElement.toDataURL("image/jpeg", 0.7);
+      scene3dFrameCache.set(elementId, dataUrl);
+    } catch { /* security error on tainted canvas */ }
+  });
+
+  return null;
+}
 import type {
   Scene3DElement,
   Scene3DObject,
@@ -455,8 +475,24 @@ export function Scene3DElementRenderer({ element, sceneStep, thumbnail }: Props)
 
   const borderRadius = style.borderRadius ?? 0;
 
-  // Thumbnail mode: static placeholder (avoids WebGL context + CSS transform sizing issues)
+  // Thumbnail mode: show cached snapshot or static placeholder
   if (thumbnail) {
+    const cachedFrame = scene3dFrameCache.get(element.id);
+    if (cachedFrame) {
+      return (
+        <img
+          src={cachedFrame}
+          alt=""
+          style={{
+            width: "100%",
+            height: "100%",
+            borderRadius,
+            objectFit: "cover",
+            background: scene.background ?? "#1a1a2e",
+          }}
+        />
+      );
+    }
     return (
       <div
         style={{
@@ -587,6 +623,9 @@ export function Scene3DElementRenderer({ element, sceneStep, thumbnail }: Props)
 
         {/* Orbit controls */}
         {scene.orbitControls && <OrbitControls />}
+
+        {/* Capture first frame for thumbnail cache */}
+        <FrameCapturer elementId={element.id} />
       </Canvas>
       </div>
     </div>

@@ -39,6 +39,70 @@ const THUMB_CHROME = 8;
 const DEFAULT_THUMB_SCALE = 0.15;
 const MIN_THUMB_SCALE = 0.1;
 
+/**
+ * Track which slide IDs are near the viewport using IntersectionObserver.
+ * Returns a Set of slide IDs that should render their full thumbnail.
+ */
+function useVisibleThumbnails(slideIds: string[], currentIndex: number) {
+  // Seed with a window around the current slide so it's never a placeholder on first render
+  const [visibleIds, setVisibleIds] = useState<Set<string>>(() => {
+    const start = Math.max(0, currentIndex - 10);
+    const end = Math.min(slideIds.length, currentIndex + 10);
+    return new Set(slideIds.slice(start, end));
+  });
+  const observerRef = useRef<IntersectionObserver | null>(null);
+  const elementsRef = useRef<Map<string, Element>>(new Map());
+
+  useEffect(() => {
+    observerRef.current = new IntersectionObserver(
+      (entries) => {
+        setVisibleIds((prev) => {
+          const next = new Set(prev);
+          let changed = false;
+          for (const entry of entries) {
+            const id = (entry.target as HTMLElement).dataset.slideThumbId;
+            if (!id) continue;
+            if (entry.isIntersecting && !next.has(id)) {
+              next.add(id);
+              changed = true;
+            } else if (!entry.isIntersecting && next.has(id)) {
+              next.delete(id);
+              changed = true;
+            }
+          }
+          return changed ? next : prev;
+        });
+      },
+      { rootMargin: "200px 0px" },
+    );
+
+    // Observe all currently registered elements
+    for (const el of elementsRef.current.values()) {
+      observerRef.current.observe(el);
+    }
+
+    return () => {
+      observerRef.current?.disconnect();
+      observerRef.current = null;
+    };
+  }, []);
+
+  const observe = useCallback((id: string, el: Element | null) => {
+    const observer = observerRef.current;
+    const prev = elementsRef.current.get(id);
+    if (prev && prev !== el) {
+      observer?.unobserve(prev);
+      elementsRef.current.delete(id);
+    }
+    if (el) {
+      elementsRef.current.set(id, el);
+      observer?.observe(el);
+    }
+  }, []);
+
+  return { visibleIds, observe };
+}
+
 function createBlankSlide(): Slide {
   return {
     id: nextSlideId(),
@@ -147,6 +211,7 @@ export function SlideList() {
   };
 
   const slideIds = slides.map((s) => s.id);
+  const { visibleIds, observe } = useVisibleThumbnails(slideIds, currentSlideIndex);
 
   return (
     <div ref={listRef} className="flex flex-col gap-1.5 p-2 overflow-y-auto">
@@ -165,6 +230,8 @@ export function SlideList() {
               scale={thumbScale}
               isCurrent={index === currentSlideIndex}
               isSelected={selectedSlideIds.includes(slide.id)}
+              isVisible={index === currentSlideIndex || visibleIds.has(slide.id)}
+              observeRef={observe}
               hasComments={!!slide.comments?.length}
               onSelect={(e: React.MouseEvent) => {
                 if (e.ctrlKey || e.metaKey) {
@@ -278,6 +345,8 @@ const SortableSlideItem = memo(function SortableSlideItem({
   scale,
   isCurrent,
   isSelected,
+  isVisible,
+  observeRef,
   hasComments,
   onSelect,
   onContextMenu,
@@ -288,6 +357,8 @@ const SortableSlideItem = memo(function SortableSlideItem({
   scale: number;
   isCurrent: boolean;
   isSelected: boolean;
+  isVisible: boolean;
+  observeRef: (id: string, el: Element | null) => void;
   hasComments: boolean;
   onSelect: (e: React.MouseEvent) => void;
   onContextMenu: (x: number, y: number) => void;
@@ -296,11 +367,22 @@ const SortableSlideItem = memo(function SortableSlideItem({
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: slide.id });
 
+  // Merge sortable ref with intersection observer ref
+  const thumbRef = useCallback(
+    (el: HTMLElement | null) => {
+      setNodeRef(el);
+      observeRef(slide.id, el);
+    },
+    [setNodeRef, observeRef, slide.id],
+  );
+
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
   };
+
+  const thumbH = Math.round(CANVAS_HEIGHT * scale);
 
   const handleContextMenu = useCallback(
     (e: React.MouseEvent) => {
@@ -311,7 +393,7 @@ const SortableSlideItem = memo(function SortableSlideItem({
   );
 
   return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners} className="relative group shrink-0" onContextMenu={handleContextMenu}>
+    <div ref={thumbRef} style={style} {...attributes} {...listeners} className="relative group shrink-0" onContextMenu={handleContextMenu} data-slide-thumb-id={slide.id}>
       <button
         onClick={onSelect}
         className={`rounded border-2 transition-colors p-0.5 ${
@@ -322,14 +404,21 @@ const SortableSlideItem = memo(function SortableSlideItem({
               : "border-zinc-700 hover:border-zinc-500"
         }`}
       >
-        <div className="relative rounded-sm overflow-hidden pointer-events-none">
-          <SlideRenderer slide={slide} scale={scale} thumbnail theme={theme} />
-          {slide.hidden && (
-            <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-              <span className="text-zinc-400 text-[10px] font-semibold uppercase tracking-wider">Hidden</span>
-            </div>
-          )}
-        </div>
+        {isVisible ? (
+          <div className="relative rounded-sm overflow-hidden pointer-events-none">
+            <SlideRenderer slide={slide} scale={scale} thumbnail theme={theme} />
+            {slide.hidden && (
+              <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                <span className="text-zinc-400 text-[10px] font-semibold uppercase tracking-wider">Hidden</span>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div
+            className="rounded-sm bg-zinc-900"
+            style={{ width: Math.round(CANVAS_WIDTH * scale), height: thumbH }}
+          />
+        )}
         <span className="absolute bottom-1 right-2 text-xs text-zinc-400 font-mono font-semibold drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
           {index + 1}
         </span>

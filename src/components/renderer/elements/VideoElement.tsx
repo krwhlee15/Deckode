@@ -1,4 +1,4 @@
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
 import type { VideoElement as VideoElementType, VideoStyle } from "@/types/deck";
 import { useElementStyle } from "@/contexts/ThemeContext";
 import { useAssetUrl } from "@/contexts/AdapterContext";
@@ -15,6 +15,18 @@ interface Props {
 
 export function VideoElementRenderer({ element, thumbnail, videoStep, editorMode }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
+
+  // Cleanup: pause and release video resources on unmount to stop decoding
+  useEffect(() => {
+    return () => {
+      const video = videoRef.current;
+      if (video) {
+        video.pause();
+        video.removeAttribute("src");
+        video.load();
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -86,6 +98,7 @@ export function VideoElementRenderer({ element, thumbnail, videoStep, editorMode
     objectFit: (style.objectFit ?? "fill") as React.CSSProperties["objectFit"],
     borderRadius: style.borderRadius ?? 0,
     clipPath,
+    willChange: "transform",
   };
 
   // Thumbnail mode: static placeholder, no video loading
@@ -138,7 +151,8 @@ export function VideoElementRenderer({ element, thumbnail, videoStep, editorMode
   const hasPlayVideoEffect = videoStep !== undefined;
   const shouldAutoPlay = editorMode ? false : (hasPlayVideoEffect ? false : (element.autoplay ?? true));
 
-  const handleClick = () => {
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
     const video = videoRef.current;
     if (!video) return;
     if (video.paused) {
@@ -165,6 +179,30 @@ export function VideoElementRenderer({ element, thumbnail, videoStep, editorMode
     );
   }
 
+  // Crop + controls: render custom controls bar outside clip-path (like editor)
+  if (hasCrop && !editorMode && element.controls) {
+    return (
+      <div className="group/video" style={{ position: "relative", width: w, height: h }}>
+        <video
+          ref={videoRef}
+          src={embedUrl}
+          autoPlay={shouldAutoPlay}
+          loop={element.loop ?? true}
+          muted={element.muted ?? true}
+          preload="auto"
+          style={{ ...commonStyle, cursor: "pointer" }}
+          onClick={handleClick}
+        />
+        <CropVideoControls
+          videoRef={videoRef}
+          crop={crop}
+          trimStart={element.trimStart}
+          trimEnd={element.trimEnd}
+        />
+      </div>
+    );
+  }
+
   return (
     <video
       ref={videoRef}
@@ -172,10 +210,157 @@ export function VideoElementRenderer({ element, thumbnail, videoStep, editorMode
       autoPlay={shouldAutoPlay}
       loop={element.loop ?? true}
       muted={element.muted ?? true}
-      controls={!editorMode && element.controls}
-      preload={editorMode ? "metadata" : undefined}
+      controls={!editorMode && !hasCrop && element.controls}
+      preload={editorMode ? "metadata" : "auto"}
       style={{ ...commonStyle, cursor: "pointer" }}
       onClick={handleClick}
     />
+  );
+}
+
+// ── Custom controls for cropped videos (rendered outside clip-path) ──
+
+function CropVideoControls({
+  videoRef,
+  crop,
+  trimStart: trimStartProp,
+  trimEnd: trimEndProp,
+}: {
+  videoRef: React.RefObject<HTMLVideoElement | null>;
+  crop: { top: number; right: number; bottom: number; left: number };
+  trimStart?: number;
+  trimEnd?: number;
+}) {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const progressRef = useRef<HTMLDivElement>(null);
+
+  const trimStart = trimStartProp ?? 0;
+
+  useEffect(() => {
+    const vid = videoRef.current;
+    if (!vid) return;
+
+    const onPlay = () => setIsPlaying(true);
+    const onPause = () => setIsPlaying(false);
+    const onTime = () => setCurrentTime(vid.currentTime);
+    const onDur = () => setDuration(vid.duration || 0);
+
+    vid.addEventListener("play", onPlay);
+    vid.addEventListener("pause", onPause);
+    vid.addEventListener("timeupdate", onTime);
+    vid.addEventListener("loadedmetadata", onDur);
+    vid.addEventListener("durationchange", onDur);
+
+    setIsPlaying(!vid.paused);
+    setCurrentTime(vid.currentTime);
+    if (vid.duration) setDuration(vid.duration);
+
+    return () => {
+      vid.removeEventListener("play", onPlay);
+      vid.removeEventListener("pause", onPause);
+      vid.removeEventListener("timeupdate", onTime);
+      vid.removeEventListener("loadedmetadata", onDur);
+      vid.removeEventListener("durationchange", onDur);
+    };
+  }, [videoRef]);
+
+  const togglePlay = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const vid = videoRef.current;
+    if (!vid) return;
+    if (vid.paused) vid.play().catch(() => {});
+    else vid.pause();
+  };
+
+  const effectiveTrimEnd = trimEndProp ?? duration;
+
+  const handleSeekDown = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const bar = progressRef.current;
+    const vid = videoRef.current;
+    if (!bar || !vid || !duration) return;
+
+    const seek = (clientX: number) => {
+      const rect = bar.getBoundingClientRect();
+      const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+      const time = ratio * duration;
+      vid.currentTime = Math.max(trimStart, Math.min(effectiveTrimEnd, time));
+    };
+    seek(e.clientX);
+
+    const onMove = (me: MouseEvent) => seek(me.clientX);
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  };
+
+  const fmt = (s: number) => {
+    if (!isFinite(s)) return "0:00";
+    const m = Math.floor(s / 60);
+    return `${m}:${Math.floor(s % 60).toString().padStart(2, "0")}`;
+  };
+
+  const hasTrim = trimStartProp !== undefined || trimEndProp !== undefined;
+  const trimStartPct = duration > 0 ? trimStart / duration : 0;
+  const trimEndPct = duration > 0 ? effectiveTrimEnd / duration : 1;
+  const pct = duration > 0 ? currentTime / duration : 0;
+  const barH = 28;
+
+  return (
+    <div
+      className="opacity-0 group-hover/video:opacity-100 transition-opacity duration-200"
+      style={{
+        position: "absolute",
+        left: `${(crop.left) * 100}%`,
+        bottom: `${(crop.bottom) * 100}%`,
+        width: `${(1 - crop.left - crop.right) * 100}%`,
+        height: barH,
+        backgroundColor: "rgba(0,0,0,0.65)",
+        display: "flex",
+        alignItems: "center",
+        gap: 6,
+        padding: "0 8px",
+        pointerEvents: "auto",
+      }}
+      onMouseDown={(e) => e.stopPropagation()}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <button
+        onClick={togglePlay}
+        style={{ background: "none", border: "none", cursor: "pointer", padding: 2, display: "flex" }}
+      >
+        {isPlaying ? (
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="white">
+            <rect x="6" y="4" width="4" height="16" />
+            <rect x="14" y="4" width="4" height="16" />
+          </svg>
+        ) : (
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="white">
+            <polygon points="8,5 19,12 8,19" />
+          </svg>
+        )}
+      </button>
+      <div
+        ref={progressRef}
+        onMouseDown={handleSeekDown}
+        style={{ flex: 1, height: 4, backgroundColor: "rgba(255,255,255,0.25)", borderRadius: 2, cursor: "pointer", position: "relative" }}
+      >
+        {hasTrim && trimStartPct > 0 && (
+          <div style={{ position: "absolute", left: 0, top: 0, width: `${trimStartPct * 100}%`, height: "100%", backgroundColor: "rgba(0,0,0,0.5)", borderRadius: "2px 0 0 2px" }} />
+        )}
+        {hasTrim && trimEndPct < 1 && (
+          <div style={{ position: "absolute", right: 0, top: 0, width: `${(1 - trimEndPct) * 100}%`, height: "100%", backgroundColor: "rgba(0,0,0,0.5)", borderRadius: "0 2px 2px 0" }} />
+        )}
+        <div style={{ width: `${pct * 100}%`, height: "100%", backgroundColor: "#3b82f6", borderRadius: 2 }} />
+      </div>
+      <span style={{ color: "rgba(255,255,255,0.8)", fontSize: 10, fontFamily: "monospace", whiteSpace: "nowrap" }}>
+        {fmt(currentTime)}/{fmt(duration)}
+      </span>
+    </div>
   );
 }

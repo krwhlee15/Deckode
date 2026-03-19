@@ -321,6 +321,7 @@ export interface Slide {
   layout?: string;
   hidden?: boolean;
   hidePageNumber?: boolean;
+  bookmark?: string;
   background?: SlideBackground;
   transition?: SlideTransition;
   notes?: string;

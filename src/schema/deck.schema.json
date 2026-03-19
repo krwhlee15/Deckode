@@ -205,6 +205,7 @@
         },
         "hidden": { "type": "boolean" },
         "hidePageNumber": { "type": "boolean" },
+        "bookmark": { "type": "string", "description": "Bookmark title. If set, this slide appears in the presenter bookmark list." },
         "notes": { "type": "string" },
         "elements": {
           "type": "array",

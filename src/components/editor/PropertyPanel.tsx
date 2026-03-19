@@ -819,6 +819,39 @@ function SlidePropertiesPanel({
         </div>
       </div>
 
+      {/* Bookmark */}
+      {selectedSlides.length === 1 && (() => {
+        const s = selectedSlides[0]!;
+        const isBookmarked = !!s.bookmark;
+        return (
+          <div>
+            <FieldLabel>Bookmark</FieldLabel>
+            <div className="space-y-1.5">
+              <label className="flex items-center gap-2 text-xs text-zinc-300">
+                <input
+                  type="checkbox"
+                  checked={isBookmarked}
+                  onChange={(e) => {
+                    updateSlide(s.id, { bookmark: e.target.checked ? (s.bookmark || `Slide ${s.id}`) : undefined } as Partial<Slide>);
+                  }}
+                  className="rounded border-zinc-600"
+                />
+                Bookmarked
+              </label>
+              {isBookmarked && (
+                <input
+                  type="text"
+                  className="w-full bg-zinc-800 text-zinc-200 rounded px-2 py-1.5 text-xs border border-zinc-700 focus:border-blue-500 focus:outline-none"
+                  value={s.bookmark ?? ""}
+                  placeholder="Bookmark title"
+                  onChange={(e) => updateSlide(s.id, { bookmark: e.target.value || undefined } as Partial<Slide>)}
+                />
+              )}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Comments (all comments on this slide) */}
       {selectedSlides.length === 1 && (
         <CommentList slideId={selectedSlides[0]!.id} />

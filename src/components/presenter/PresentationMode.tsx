@@ -345,10 +345,19 @@ export function PresentationMode({ onExit }: PresentationModeProps) {
     );
   }
 
-  const jumpToVisibleSlide = useCallback((visibleIdx: number) => {
+  const jumpToVisibleSlide = useCallback((visibleIdx: number, skipAnim?: boolean) => {
     const vs = visibleSlidesRef.current;
     if (visibleIdx >= 0 && visibleIdx < vs.length) {
-      setCurrentSlide(vs[visibleIdx]!.originalIndex);
+      if (skipAnim) {
+        // Compute steps for the target slide and jump to the end
+        const targetSlide = vs[visibleIdx]!.slide;
+        const targetSteps = computeSteps(targetSlide.animations ?? []);
+        skipStepResetRef.current = true;
+        setCurrentSlide(vs[visibleIdx]!.originalIndex);
+        setActiveStep(targetSteps.length);
+      } else {
+        setCurrentSlide(vs[visibleIdx]!.originalIndex);
+      }
     }
   }, [setCurrentSlide]);
 
@@ -357,6 +366,7 @@ export function PresentationMode({ onExit }: PresentationModeProps) {
       slide={slide}
       nextSlide={nextVisibleSlide}
       deck={deck}
+      visibleSlides={visibleSlides}
       activeStep={activeStep}
       steps={steps}
       noteSegments={noteSegments}
@@ -385,6 +395,7 @@ function PresenterConsole({
   slide,
   nextSlide,
   deck,
+  visibleSlides,
   activeStep,
   steps,
   noteSegments,
@@ -405,6 +416,7 @@ function PresenterConsole({
   slide: Slide;
   nextSlide: Slide | null;
   deck: Deck;
+  visibleSlides: { slide: Slide; originalIndex: number }[];
   activeStep: number;
   steps: AnimationStep[];
   noteSegments: NoteSegment[];
@@ -416,7 +428,7 @@ function PresenterConsole({
   onPointerToggle: () => void;
   onAdvance: () => void;
   onGoBack: () => void;
-  onJumpTo: (visibleIdx: number) => void;
+  onJumpTo: (visibleIdx: number, skipAnim?: boolean) => void;
   onPointerMove: (x: number, y: number) => void;
   onPointerLeave: () => void;
   onOpenAudienceWindow: () => void;
@@ -431,6 +443,16 @@ function PresenterConsole({
   const [editingNotes, setEditingNotes] = useState(false);
   const [noteDraft, setNoteDraft] = useState("");
   const noteTextareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const [skipAnim, setSkipAnim] = useState(false);
+  const [bookmarksOpen, setBookmarksOpen] = useState(true);
+
+  // Bookmarked visible slides
+  const bookmarks = useMemo(() => {
+    return visibleSlides
+      .map((v, visibleIdx) => ({ visibleIdx, slide: v.slide }))
+      .filter((b) => !!b.slide.bookmark);
+  }, [visibleSlides]);
 
   // Resizable layout: slide area fraction (0.5–0.85)
   const [slideFraction, setSlideFraction] = useState(0.65);
@@ -621,6 +643,40 @@ function PresenterConsole({
             )}
           </div>
 
+          {/* Bookmarks */}
+          {bookmarks.length > 0 && (
+            <div className="border-b border-zinc-800 shrink-0">
+              <button
+                onClick={() => setBookmarksOpen((o) => !o)}
+                className="w-full flex items-center justify-between px-4 py-1.5 text-xs font-semibold text-zinc-500 uppercase tracking-wider hover:bg-zinc-800/50 transition-colors"
+              >
+                <span>Bookmarks ({bookmarks.length})</span>
+                <span className="text-zinc-600">{bookmarksOpen ? "\u2212" : "+"}</span>
+              </button>
+              {bookmarksOpen && (
+                <div className="px-2 pb-2 space-y-0.5">
+                  {bookmarks.map((b) => {
+                    const isCurrent = b.visibleIdx === currentSlideIndex;
+                    return (
+                      <button
+                        key={b.slide.id}
+                        onClick={() => onJumpTo(b.visibleIdx, skipAnim)}
+                        className={`w-full text-left px-2 py-1 rounded text-xs transition-colors flex items-center gap-2 ${
+                          isCurrent
+                            ? "bg-blue-600/20 text-blue-300"
+                            : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
+                        }`}
+                      >
+                        <span className="text-zinc-600 font-mono w-5 text-right shrink-0">{b.visibleIdx + 1}</span>
+                        <span className="truncate">{b.slide.bookmark}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Speaker notes with animation-aware highlighting */}
           <div className="flex-1 overflow-y-auto p-4 min-h-0 flex flex-col">
             <div className="flex items-center justify-between mb-2 shrink-0">
@@ -734,16 +790,36 @@ function PresenterConsole({
           ›
         </button>
 
-        {/* Slider */}
-        <input
-          type="range"
-          min={0}
-          max={totalSlides - 1}
-          value={currentSlideIndex}
-          onChange={(e) => onJumpTo(parseInt(e.target.value, 10))}
-          className="flex-1 h-1 accent-blue-500 cursor-pointer"
-          title={`Slide ${currentSlideIndex + 1} of ${totalSlides}`}
-        />
+        {/* Slider with bookmark markers */}
+        <div className="flex-1 relative h-7 flex items-center">
+          <input
+            type="range"
+            min={0}
+            max={totalSlides - 1}
+            value={currentSlideIndex}
+            onChange={(e) => onJumpTo(parseInt(e.target.value, 10), skipAnim)}
+            className="w-full h-1 accent-blue-500 cursor-pointer"
+            title={`Slide ${currentSlideIndex + 1} of ${totalSlides}`}
+          />
+          {/* Bookmark markers on slider */}
+          {totalSlides > 1 && bookmarks.map((b) => {
+            const pct = (b.visibleIdx / (totalSlides - 1)) * 100;
+            return (
+              <div
+                key={b.slide.id}
+                className="absolute top-0 group"
+                style={{ left: `${pct}%`, transform: "translateX(-50%)" }}
+              >
+                <div className="w-1.5 h-1.5 bg-blue-400 rounded-full cursor-pointer"
+                  onClick={() => onJumpTo(b.visibleIdx, skipAnim)}
+                />
+                <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded bg-zinc-700 text-[10px] text-zinc-200 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                  {b.visibleIdx + 1}. {b.slide.bookmark}
+                </div>
+              </div>
+            );
+          })}
+        </div>
 
         {steps.length > 0 && (
           <div className="text-zinc-500 text-xs shrink-0 tabular-nums">
@@ -755,6 +831,17 @@ function PresenterConsole({
 
         {/* Controls */}
         <div className="flex items-center gap-1.5 shrink-0">
+          <button
+            onClick={() => setSkipAnim((s) => !s)}
+            className={`text-xs px-2 py-0.5 rounded transition-colors ${
+              skipAnim
+                ? "bg-blue-600 text-white"
+                : "bg-zinc-800 text-zinc-400 hover:text-zinc-200"
+            }`}
+            title="Skip animations when jumping via slider or bookmark"
+          >
+            Skip Anim
+          </button>
           <button
             onClick={onPointerToggle}
             className={`text-xs px-2 py-0.5 rounded transition-colors ${

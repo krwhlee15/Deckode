@@ -158,6 +158,7 @@ A Deckode presentation is a single `deck.json` file (with optional `$ref` splits
 | `transition.duration` | number | no | Duration in ms. Default: `300` |
 | `hidden` | boolean | no | Hide this slide from presentation and export |
 | `hidePageNumber` | boolean | no | Suppress page number on this slide (when page numbers are enabled globally) |
+| `bookmark` | string | no | Bookmark title. Appears in presenter bookmark list for quick navigation |
 | `notes` | string | no | Speaker notes (plain text or Markdown) |
 | `elements` | array | yes | Array of Element objects |
 | `animations` | array | no | Array of Animation objects |

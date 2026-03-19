@@ -428,6 +428,13 @@ const SortableSlideItem = memo(function SortableSlideItem({
       {hasComments && (
         <div className="absolute top-0.5 right-0.5 w-2 h-2 rounded-full bg-amber-500 border border-amber-400" />
       )}
+      {/* Bookmark badge */}
+      {slide.bookmark && (
+        <div
+          className="absolute top-0.5 left-0.5 w-2 h-2 rounded-sm bg-blue-500 border border-blue-400"
+          title={slide.bookmark}
+        />
+      )}
     </div>
   );
 });

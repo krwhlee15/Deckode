@@ -345,6 +345,13 @@ export function PresentationMode({ onExit }: PresentationModeProps) {
     );
   }
 
+  const jumpToVisibleSlide = useCallback((visibleIdx: number) => {
+    const vs = visibleSlidesRef.current;
+    if (visibleIdx >= 0 && visibleIdx < vs.length) {
+      setCurrentSlide(vs[visibleIdx]!.originalIndex);
+    }
+  }, [setCurrentSlide]);
+
   return (
     <PresenterConsole
       slide={slide}
@@ -360,6 +367,8 @@ export function PresentationMode({ onExit }: PresentationModeProps) {
       localPointer={localPointer}
       onPointerToggle={() => setPointerActive((p) => !p)}
       onAdvance={advance}
+      onGoBack={goBack}
+      onJumpTo={jumpToVisibleSlide}
       onPointerMove={handlePointerMove}
       onPointerLeave={handlePointerLeave}
       onOpenAudienceWindow={openAudienceWindow}
@@ -386,6 +395,8 @@ function PresenterConsole({
   localPointer,
   onPointerToggle,
   onAdvance,
+  onGoBack,
+  onJumpTo,
   onPointerMove,
   onPointerLeave,
   onOpenAudienceWindow,
@@ -404,6 +415,8 @@ function PresenterConsole({
   localPointer: { x: number; y: number; visible: boolean };
   onPointerToggle: () => void;
   onAdvance: () => void;
+  onGoBack: () => void;
+  onJumpTo: (visibleIdx: number) => void;
   onPointerMove: (x: number, y: number) => void;
   onPointerLeave: () => void;
   onOpenAudienceWindow: () => void;
@@ -418,6 +431,10 @@ function PresenterConsole({
   const [editingNotes, setEditingNotes] = useState(false);
   const [noteDraft, setNoteDraft] = useState("");
   const noteTextareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Resizable layout: slide area fraction (0.5–0.85)
+  const [slideFraction, setSlideFraction] = useState(0.65);
+  const dividerDragRef = useRef<{ startX: number; startFrac: number } | null>(null);
 
   const handleEditNotes = useCallback(() => {
     setNoteDraft(slide.notes ?? "");
@@ -442,22 +459,44 @@ function PresenterConsole({
     }
   }, [slide.id, editingNotes, noteDraft]);
 
+  const updateScales = useCallback(() => {
+    if (!containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const frac = slideFraction;
+    const mainW = rect.width * (frac - 0.03);
+    const mainH = rect.height - 44 - 32;
+    setCurrentScale(Math.min(mainW / CANVAS_WIDTH, mainH / CANVAS_HEIGHT));
+    const sideW = rect.width * (1 - frac - 0.03);
+    const sideH = (rect.height - 44) * 0.32;
+    setNextScale(Math.min(sideW / CANVAS_WIDTH, sideH / CANVAS_HEIGHT));
+  }, [slideFraction]);
+
   useEffect(() => {
-    const update = () => {
-      if (!containerRef.current) return;
+    updateScales();
+    window.addEventListener("resize", updateScales);
+    return () => window.removeEventListener("resize", updateScales);
+  }, [updateScales]);
+
+  // Divider drag
+  useEffect(() => {
+    const onMouseMove = (e: MouseEvent) => {
+      if (!dividerDragRef.current || !containerRef.current) return;
       const rect = containerRef.current.getBoundingClientRect();
-      // Current slide: left ~65% width, full height minus bottom bar (44px)
-      const mainW = rect.width * 0.62;
-      const mainH = rect.height - 44 - 32; // 44px bar + padding
-      setCurrentScale(Math.min(mainW / CANVAS_WIDTH, mainH / CANVAS_HEIGHT));
-      // Next slide: right ~35% width, top ~35% height
-      const sideW = rect.width * 0.32;
-      const sideH = (rect.height - 44) * 0.32;
-      setNextScale(Math.min(sideW / CANVAS_WIDTH, sideH / CANVAS_HEIGHT));
+      const delta = (e.clientX - dividerDragRef.current.startX) / rect.width;
+      setSlideFraction(Math.max(0.4, Math.min(0.85, dividerDragRef.current.startFrac + delta)));
     };
-    update();
-    window.addEventListener("resize", update);
-    return () => window.removeEventListener("resize", update);
+    const onMouseUp = () => {
+      if (!dividerDragRef.current) return;
+      dividerDragRef.current = null;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
   }, []);
 
   const handleSlideMouseMove = useCallback(
@@ -485,8 +524,8 @@ function PresenterConsole({
     >
       {/* Main area */}
       <div className="flex-1 flex overflow-hidden min-h-0">
-        {/* Current slide (left ~65%) */}
-        <div className="flex-[2] flex items-center justify-center p-4">
+        {/* Current slide */}
+        <div className="flex items-center justify-center p-4" style={{ width: `${slideFraction * 100}%` }}>
           <div
             ref={slideAreaRef}
             className={`relative ${pointerActive ? "cursor-crosshair" : ""}`}
@@ -532,8 +571,19 @@ function PresenterConsole({
           </div>
         </div>
 
-        {/* Right sidebar (~35%): next slide + notes */}
-        <div className="flex-[1] flex flex-col border-l border-zinc-800 min-w-0">
+        {/* Resize divider */}
+        <div
+          className="w-1 shrink-0 cursor-col-resize hover:bg-blue-500/40 active:bg-blue-500/40 transition-colors"
+          onMouseDown={(e) => {
+            e.preventDefault();
+            dividerDragRef.current = { startX: e.clientX, startFrac: slideFraction };
+            document.body.style.cursor = "col-resize";
+            document.body.style.userSelect = "none";
+          }}
+        />
+
+        {/* Right sidebar: next slide + notes */}
+        <div className="flex flex-col border-l border-zinc-800 min-w-0" style={{ width: `${(1 - slideFraction) * 100}%` }}>
           {/* Next preview: next animation step or next slide */}
           <div className="flex flex-col items-center justify-center p-3 border-b border-zinc-800 shrink-0">
             <div className="text-xs font-semibold text-zinc-500 mb-1.5 uppercase tracking-wider">
@@ -663,26 +713,48 @@ function PresenterConsole({
       </div>
 
       {/* Bottom bar */}
-      <div className="h-11 border-t border-zinc-800 flex items-center justify-between px-6 shrink-0 text-sm">
-        {/* Left: slide/step counters */}
-        <div className="text-zinc-400">
-          Slide{" "}
-          <span className="text-white font-semibold">
-            {currentSlideIndex + 1}
-          </span>
-          <span className="text-zinc-600">/{totalSlides}</span>
-          {steps.length > 0 && (
-            <>
-              <span className="mx-3 text-zinc-700">|</span>
-              Step{" "}
-              <span className="text-white font-semibold">{activeStep}</span>
-              <span className="text-zinc-600">/{steps.length}</span>
-            </>
-          )}
+      <div className="h-11 border-t border-zinc-800 flex items-center gap-3 px-4 shrink-0 text-sm">
+        {/* Nav buttons + counter */}
+        <button
+          onClick={onGoBack}
+          className="w-7 h-7 flex items-center justify-center rounded bg-zinc-800 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700 transition-colors shrink-0"
+          title="Previous (←)"
+        >
+          ‹
+        </button>
+        <div className="text-zinc-400 shrink-0 w-16 text-center tabular-nums">
+          <span className="text-white font-semibold">{currentSlideIndex + 1}</span>
+          <span className="text-zinc-600"> / {totalSlides}</span>
         </div>
+        <button
+          onClick={onAdvance}
+          className="w-7 h-7 flex items-center justify-center rounded bg-zinc-800 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700 transition-colors shrink-0"
+          title="Next (→)"
+        >
+          ›
+        </button>
 
-        {/* Center: controls */}
-        <div className="flex items-center gap-2">
+        {/* Slider */}
+        <input
+          type="range"
+          min={0}
+          max={totalSlides - 1}
+          value={currentSlideIndex}
+          onChange={(e) => onJumpTo(parseInt(e.target.value, 10))}
+          className="flex-1 h-1 accent-blue-500 cursor-pointer"
+          title={`Slide ${currentSlideIndex + 1} of ${totalSlides}`}
+        />
+
+        {steps.length > 0 && (
+          <div className="text-zinc-500 text-xs shrink-0 tabular-nums">
+            Step <span className="text-zinc-300">{activeStep}</span>/{steps.length}
+          </div>
+        )}
+
+        <span className="text-zinc-800 shrink-0">|</span>
+
+        {/* Controls */}
+        <div className="flex items-center gap-1.5 shrink-0">
           <button
             onClick={onPointerToggle}
             className={`text-xs px-2 py-0.5 rounded transition-colors ${
@@ -708,13 +780,10 @@ function PresenterConsole({
           >
             Pop Out
           </button>
-          <span className="text-[10px] text-zinc-600 ml-2">
-            P view / W pop out / L pointer / F fullscreen / Esc exit
-          </span>
         </div>
 
-        {/* Right: timer */}
-        <div className="font-mono text-zinc-300 text-base">{mm}:{ss}</div>
+        {/* Timer */}
+        <div className="font-mono text-zinc-300 text-sm shrink-0 ml-auto tabular-nums">{mm}:{ss}</div>
       </div>
     </div>
   );

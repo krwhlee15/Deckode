@@ -304,7 +304,7 @@ Renders Markdown text content.
 
 **Content format**: Markdown string. Supports:
 - Headings (`#`, `##`, `###`)
-- Bold (`**text**`), italic (`*text*`)
+- Bold (`**text**`), italic (`*text*`) — **do NOT use `**` inside `$...$` math; use `\bm{}` or `\mathbf{}`**
 - Inline code (`` `code` ``)
 - Links (`[text](url)`)
 - Unordered lists (`- item`)
@@ -1508,6 +1508,24 @@ Rotation is applied as a CSS `transform: rotate()` on the element's bounding box
 
 ---
 
+## Common Pitfalls
+
+These are critical mistakes that break rendering. **Read this section before creating or modifying any deck.**
+
+1. **Do NOT use Markdown `**` inside LaTeX math.** `$**x**$` renders as literal asterisks. Use `\bm{x}` (bold-italic) or `\mathbf{x}` (bold-upright) instead. This applies to both inline `$...$` and display `$$...$$` math.
+
+2. **Never use `rotation` on line/arrow elements.** The code will assert-fail. Use `waypoints` to control line direction instead.
+
+3. **Always provide `waypoints` for line/arrow elements.** Without waypoints, lines fall back to `y=0` which may not be the intended position. Always specify at least 2 waypoints: `[{ "x": 0, "y": 0 }, { "x": w, "y": 0 }]` for horizontal lines.
+
+4. **TikZ: always add an explicit bounding box.** TikZJax computes a tight SVG bounding box that clips multi-line nodes. Add an invisible `\path` rectangle as the first drawing command. See the TikZ section for details.
+
+5. **TikZ: prefer native elements for flow diagrams.** Use `shape` + `text` elements instead of TikZ for block-and-arrow layouts. Native elements support per-element animations, drag-and-drop editing, and proper text rendering.
+
+6. **`size` is the bounding box, not the visual size.** For line/arrow, `size` encloses the waypoints. For text, `size.w` controls the text wrap width. Don't confuse it with the visual appearance.
+
+---
+
 ## Guidelines for AI
 
 ### Creating a New Deck
@@ -1547,7 +1565,7 @@ Use consistent color schemes. Here are some starting points:
 - Keep text concise — slides are not documents
 - One idea per slide
 - Use Markdown headings to establish hierarchy
-- Use `**bold**` for emphasis, sparingly
+- Use `**bold**` for emphasis, sparingly. **Never use `**` inside `$...$` math** — use `\bm{}` or `\mathbf{}` instead
 - Code blocks: show only the relevant lines, not entire files
 - Speaker notes (`notes` field) can hold the detailed explanation
 

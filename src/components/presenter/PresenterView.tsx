@@ -7,6 +7,7 @@ import { ReadOnlyAdapter } from "@/adapters/readOnly";
 import { computeSteps } from "@/utils/animationSteps";
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from "@/types/deck";
 import type { SlideTransition } from "@/types/deck";
+import { getPageNumberInfo } from "@/utils/pageNumbers";
 import type { FileSystemAdapter } from "@/adapters/types";
 import { AnimatePresence, motion } from "framer-motion";
 import { MorphTransition } from "@/components/renderer/MorphTransition";
@@ -195,6 +196,7 @@ export function PresenterView() {
             theme={deck.theme}
             activeStep={activeStep}
             steps={steps}
+            pageNumberInfo={getPageNumberInfo(deck, currentSlideIndex)}
           />
         ) : (
           <AnimatePresence mode="wait">
@@ -212,6 +214,7 @@ export function PresenterView() {
                 activeStep={activeStep}
                 steps={steps}
                 theme={deck.theme}
+                pageNumberInfo={getPageNumberInfo(deck, currentSlideIndex)}
               />
             </motion.div>
           </AnimatePresence>

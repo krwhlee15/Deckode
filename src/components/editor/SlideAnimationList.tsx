@@ -1,3 +1,4 @@
+import { useRef, useState } from "react";
 import { useDeckStore } from "@/stores/deckStore";
 import { usePreviewStore } from "@/stores/previewStore";
 import { computeSteps } from "@/utils/animationSteps";
@@ -25,6 +26,9 @@ export function SlideAnimationList({ onSelectElement }: Props) {
   const deleteAnimation = useDeckStore((s) => s.deleteAnimation);
   const moveAnimation = useDeckStore((s) => s.moveAnimation);
   const startPreview = usePreviewStore((s) => s.startPreview);
+
+  const dragIndexRef = useRef<number | null>(null);
+  const [dropTarget, setDropTarget] = useState<number | null>(null);
 
   if (!deck) return null;
 
@@ -120,7 +124,21 @@ export function SlideAnimationList({ onSelectElement }: Props) {
         {animations.map((anim, index) => (
           <div
             key={index}
-            className="bg-zinc-800/50 border border-zinc-700 rounded p-2 space-y-1.5"
+            draggable
+            onDragStart={() => { dragIndexRef.current = index; }}
+            onDragOver={(e) => { e.preventDefault(); setDropTarget(index); }}
+            onDragLeave={() => { if (dropTarget === index) setDropTarget(null); }}
+            onDrop={() => {
+              if (dragIndexRef.current !== null && dragIndexRef.current !== index) {
+                moveAnimation(slide.id, dragIndexRef.current, index);
+              }
+              dragIndexRef.current = null;
+              setDropTarget(null);
+            }}
+            onDragEnd={() => { dragIndexRef.current = null; setDropTarget(null); }}
+            className={`bg-zinc-800/50 border rounded p-2 space-y-1.5 cursor-grab active:cursor-grabbing ${
+              dropTarget === index ? "border-blue-500" : "border-zinc-700"
+            }`}
           >
             {/* Header: index + target + actions */}
             <div className="flex items-center justify-between gap-1">

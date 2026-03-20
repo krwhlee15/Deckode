@@ -493,6 +493,7 @@ export function PresentationMode({ onExit }: PresentationModeProps) {
       steps={steps}
       noteSegments={noteSegments}
       currentSlideIndex={visiblePosition !== -1 ? visiblePosition : 0}
+      rawSlideIndex={currentSlideIndex}
       totalSlides={totalSlides}
       elapsed={elapsed}
       pointerActive={pointerActive}
@@ -522,6 +523,7 @@ function PresenterConsole({
   steps,
   noteSegments,
   currentSlideIndex,
+  rawSlideIndex,
   totalSlides,
   elapsed,
   pointerActive,
@@ -543,6 +545,7 @@ function PresenterConsole({
   steps: AnimationStep[];
   noteSegments: NoteSegment[];
   currentSlideIndex: number;
+  rawSlideIndex: number;
   totalSlides: number;
   elapsed: number;
   pointerActive: boolean;
@@ -716,7 +719,7 @@ function PresenterConsole({
                 activeStep={activeStep}
                 steps={steps}
                 onAdvance={onAdvance}
-                pageNumberInfo={getPageNumberInfo(deck, currentSlideIndex)}
+                pageNumberInfo={getPageNumberInfo(deck, rawSlideIndex)}
               />
             ) : (
               <SlideRenderer
@@ -728,7 +731,7 @@ function PresenterConsole({
                 steps={steps}
                 onAdvance={onAdvance}
                 theme={deck.theme}
-                pageNumberInfo={getPageNumberInfo(deck, currentSlideIndex)}
+                pageNumberInfo={getPageNumberInfo(deck, rawSlideIndex)}
               />
             )}
             {/* Local laser pointer dot */}

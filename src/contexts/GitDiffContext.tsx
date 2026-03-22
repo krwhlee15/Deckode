@@ -1,17 +1,17 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { createContext, useContext, useState, useEffect, useRef, useMemo, useCallback } from "react";
+import type { ReactNode } from "react";
 import { useDeckStore } from "@/stores/deckStore";
 import { useAdapter } from "@/contexts/AdapterContext";
 import { loadGitBaseDeck, fetchGitHeadHash } from "@/utils/api";
 import { getStoredProjectPath } from "@/components/editor/ProjectSettingsDialog";
 import { diffSlides } from "@/utils/deckDiff";
-import type { Deck } from "@/types/deck";
+import type { Deck, Slide } from "@/types/deck";
 import type { ChangeType } from "@/utils/deckDiff";
 
 export interface GitDiffResult {
   changedSlideIds: Set<string>;
   elementChanges: Map<string, ChangeType>;
   baseNotes: string | undefined;
-  /** Base comments for current slide (from git HEAD) */
   baseComments: any[] | undefined;
   available: boolean;
   unavailableReason?: "no-path" | "no-git";
@@ -20,14 +20,20 @@ export interface GitDiffResult {
 
 const EMPTY_SLIDES = new Set<string>();
 const EMPTY_ELEMENTS = new Map<string, ChangeType>();
-
-/** Stringify a slide for comparison, excluding the _ref metadata field */
-function stableStringify(slide: any): string {
-  const { _ref: _, ...rest } = slide;
-  return JSON.stringify(rest);
-}
-const POLL_INTERVAL = 30_000; // 30 seconds
+const POLL_INTERVAL = 30_000;
 const CACHE_PREFIX = "deckode-git-base:";
+
+// WeakMap cache: avoids re-serializing unchanged slide objects (immer structural sharing)
+const slideHashCache = new WeakMap<object, string>();
+
+function getSlideHash(slide: Slide): string {
+  let hash = slideHashCache.get(slide);
+  if (hash !== undefined) return hash;
+  const { _ref: _, ...rest } = slide as any;
+  hash = JSON.stringify(rest);
+  slideHashCache.set(slide, hash);
+  return hash;
+}
 
 function getCachedBase(project: string, hash: string): Deck | null {
   try {
@@ -42,11 +48,26 @@ function getCachedBase(project: string, hash: string): Deck | null {
 function setCachedBase(project: string, hash: string, deck: Deck) {
   try {
     sessionStorage.setItem(`${CACHE_PREFIX}${project}`, JSON.stringify({ hash, deck }));
-  } catch { /* storage full — ignore */ }
+  } catch { /* storage full */ }
 }
 
+const DEFAULT_RESULT: GitDiffResult = {
+  changedSlideIds: EMPTY_SLIDES,
+  elementChanges: EMPTY_ELEMENTS,
+  baseNotes: undefined,
+  baseComments: undefined,
+  available: false,
+  refetch: () => {},
+};
+
+const GitDiffContext = createContext<GitDiffResult>(DEFAULT_RESULT);
+
 export function useGitDiff(): GitDiffResult {
-  const deck = useDeckStore((s) => s.deck);
+  return useContext(GitDiffContext);
+}
+
+export function GitDiffProvider({ children }: { children: ReactNode }) {
+  const slides = useDeckStore((s) => s.deck?.slides);
   const currentSlideIndex = useDeckStore((s) => s.currentSlideIndex);
   const adapter = useAdapter();
   const [baseDeck, setBaseDeck] = useState<Deck | null>(null);
@@ -54,6 +75,16 @@ export function useGitDiff(): GitDiffResult {
   const [fetchVersion, setFetchVersion] = useState(0);
   const headHashRef = useRef<string | null>(null);
   const fetchedKey = useRef<string | null>(null);
+
+  // Pre-compute base slide hashes once when baseDeck changes
+  const baseSlideHashMap = useMemo(() => {
+    if (!baseDeck) return null;
+    const map = new Map<string, string>();
+    for (const s of baseDeck.slides) {
+      map.set(s.id, getSlideHash(s));
+    }
+    return map;
+  }, [baseDeck]);
 
   const refetch = useCallback(() => {
     fetchedKey.current = null;
@@ -78,7 +109,6 @@ export function useGitDiff(): GitDiffResult {
       return;
     }
 
-    // First check HEAD hash, then use cache or fetch
     fetchGitHeadHash(project, absPath).then((hash) => {
       if (!hash) {
         setUnavailableReason("no-git");
@@ -87,7 +117,6 @@ export function useGitDiff(): GitDiffResult {
       }
       headHashRef.current = hash;
 
-      // Try cache
       const cached = getCachedBase(project, hash);
       if (cached) {
         setBaseDeck(cached);
@@ -95,7 +124,6 @@ export function useGitDiff(): GitDiffResult {
         return;
       }
 
-      // Fetch fresh
       loadGitBaseDeck(project, absPath).then((base) => {
         if (base) {
           setCachedBase(project, hash, base);
@@ -130,10 +158,10 @@ export function useGitDiff(): GitDiffResult {
     return () => clearInterval(interval);
   }, [adapter.projectName, adapter.mode, unavailableReason, refetch]);
 
-  return useMemo(() => {
+  const value = useMemo((): GitDiffResult => {
     const base = { refetch, unavailableReason };
 
-    if (unavailableReason || !baseDeck || !deck) {
+    if (unavailableReason || !baseDeck || !slides || !baseSlideHashMap) {
       return {
         changedSlideIds: EMPTY_SLIDES,
         elementChanges: EMPTY_ELEMENTS,
@@ -144,20 +172,20 @@ export function useGitDiff(): GitDiffResult {
       };
     }
 
-    const baseSlideMap = new Map(baseDeck.slides.map((s) => [s.id, s]));
     const changedSlideIds = new Set<string>();
-
-    for (const slide of deck.slides) {
-      const baseSlide = baseSlideMap.get(slide.id);
-      if (!baseSlide) {
+    for (const slide of slides) {
+      const baseHash = baseSlideHashMap.get(slide.id);
+      if (!baseHash) {
         changedSlideIds.add(slide.id);
-      } else if (stableStringify(baseSlide) !== stableStringify(slide)) {
+      } else if (getSlideHash(slide) !== baseHash) {
         changedSlideIds.add(slide.id);
       }
     }
 
     const elementChanges = new Map<string, ChangeType>();
-    const currentSlide = deck.slides[currentSlideIndex];
+    const currentSlide = slides[currentSlideIndex];
+    const baseSlideMap = new Map(baseDeck.slides.map((s) => [s.id, s]));
+
     if (currentSlide) {
       const baseSlide = baseSlideMap.get(currentSlide.id) ?? null;
       const diff = diffSlides(baseSlide, currentSlide);
@@ -182,5 +210,11 @@ export function useGitDiff(): GitDiffResult {
       available: true,
       ...base,
     };
-  }, [unavailableReason, baseDeck, deck, currentSlideIndex, refetch]);
+  }, [unavailableReason, baseDeck, slides, currentSlideIndex, baseSlideHashMap, refetch]);
+
+  return (
+    <GitDiffContext.Provider value={value}>
+      {children}
+    </GitDiffContext.Provider>
+  );
 }

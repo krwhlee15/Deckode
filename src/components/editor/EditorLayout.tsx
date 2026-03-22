@@ -18,7 +18,7 @@ import { exportToNativePdf } from "@/components/export/pdfNativeExport";
 import { exportToPptx } from "@/components/export/pptxExport";
 import { useAdapter } from "@/contexts/AdapterContext";
 import { ProjectSettingsDialog } from "./ProjectSettingsDialog";
-import { useGitDiff } from "@/hooks/useGitDiff";
+import { useGitDiff } from "@/contexts/GitDiffContext";
 import { useTikzAutoRender } from "@/hooks/useTikzAutoRender";
 
 import {
@@ -404,13 +404,19 @@ export function EditorLayout() {
         >
           {isReadOnly ? "Back" : "Projects"}
         </button>
-        <button
-          onClick={() => setShowProjectSettings(true)}
-          className="text-sm font-semibold text-zinc-300 hover:text-zinc-100 transition-colors"
-          title="Project settings"
-        >
-          {useDeckStore.getState().currentProject}
-        </button>
+        {import.meta.env.DEV ? (
+          <button
+            onClick={() => setShowProjectSettings(true)}
+            className="text-sm font-semibold text-zinc-300 hover:text-zinc-100 transition-colors"
+            title="Project settings"
+          >
+            {useDeckStore.getState().currentProject}
+          </button>
+        ) : (
+          <span className="text-sm font-semibold text-zinc-300">
+            {useDeckStore.getState().currentProject}
+          </span>
+        )}
 
         {/* Save status / Read-only badge */}
         {isReadOnly ? (
@@ -524,29 +530,29 @@ export function EditorLayout() {
         >
           PPTX
         </button>
-        <button
-          onClick={() => {
-            if (!showDiff && !gitDiff.available) {
-              if (gitDiff.unavailableReason === "no-path") {
-                setShowProjectSettings(true);
+        {import.meta.env.DEV && (
+          <button
+            onClick={() => {
+              if (!showDiff && !gitDiff.available) {
+                if (gitDiff.unavailableReason === "no-path") {
+                  setShowProjectSettings(true);
+                }
+                return;
               }
-              return;
-            }
-            setShowDiff(!showDiff);
-          }}
-          className={`text-xs px-2 py-1 rounded transition-colors ${
-            showDiff
-              ? "bg-green-600 text-white"
-              : "bg-zinc-800 text-zinc-400 hover:text-zinc-200"
-          }`}
-          title={!gitDiff.available && gitDiff.unavailableReason === "no-path"
-            ? "Set project path to enable git diff"
-            : !gitDiff.available
+              setShowDiff(!showDiff);
+            }}
+            className={`text-xs px-2 py-1 rounded transition-colors ${
+              showDiff
+                ? "bg-green-600 text-white"
+                : "bg-zinc-800 text-zinc-400 hover:text-zinc-200"
+            }`}
+            title={!gitDiff.available
               ? "Git history not available"
               : "Git Diff (Ctrl+Shift+D)"}
-        >
-          Diff
-        </button>
+          >
+            Diff
+          </button>
+        )}
         <button
           onClick={() => setRightPanel(rightPanel === "theme" ? "properties" : "theme")}
           className={`text-xs px-2 py-1 rounded transition-colors ${

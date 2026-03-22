@@ -75,16 +75,22 @@ export function SelectionOverlay({ slide, scale }: Props) {
   const isCropping = cropElementId !== null;
   const isTrimming = trimElementId !== null;
 
-  // Group-aware select: clicking a grouped element always selects the whole group
-  const handleSelect = useCallback(
-    (element: SlideElement, e: React.MouseEvent) => {
+  // Stable callbacks: read latest state from store to avoid closure staleness
+  const handleElementSelect = useCallback(
+    (elementId: string, e: React.MouseEvent) => {
+      const state = useDeckStore.getState();
+      const currentSlide = state.deck?.slides[state.currentSlideIndex];
+      if (!currentSlide) return;
+      const element = currentSlide.elements.find((el) => el.id === elementId);
+      if (!element) return;
+      const sel = state.selectedElementIds;
+
       if (e.shiftKey) {
         if (element.groupId) {
-          // Add all group members
-          const groupMembers = slide.elements
+          const groupMembers = currentSlide.elements
             .filter((el) => el.groupId === element.groupId)
             .map((el) => el.id);
-          const merged = [...new Set([...selectedElementIds, ...groupMembers])];
+          const merged = [...new Set([...sel, ...groupMembers])];
           selectElements(merged);
         } else {
           selectElement(element.id, "add");
@@ -92,17 +98,89 @@ export function SelectionOverlay({ slide, scale }: Props) {
       } else if (e.ctrlKey || e.metaKey) {
         selectElement(element.id, "toggle");
       } else if (element.groupId) {
-        // Always select entire group
-        const groupMembers = slide.elements
+        const groupMembers = currentSlide.elements
           .filter((el) => el.groupId === element.groupId)
           .map((el) => el.id);
         selectElements(groupMembers);
-      } else if (!selectedElementIds.includes(element.id)) {
+      } else if (!sel.includes(element.id)) {
         selectElement(element.id);
       }
-      // If already selected with no modifier, keep current selection (enables multi-drag)
     },
-    [slide.elements, selectedElementIds, selectElement, selectElements],
+    [selectElement, selectElements],
+  );
+
+  const handleElementDoubleClick = useCallback(
+    (elementId: string) => {
+      const state = useDeckStore.getState();
+      const currentSlide = state.deck?.slides[state.currentSlideIndex];
+      if (!currentSlide) return;
+      const element = currentSlide.elements.find((el) => el.id === elementId);
+      if (!element) return;
+
+      if (element.type === "reference") {
+        useDeckStore.getState().enterComponentEditMode((element as ReferenceElementType).componentId);
+      } else if (element.groupId) {
+        selectElement(element.id);
+      } else if ((element.type === "image" || element.type === "video") && !state.cropElementId) {
+        setCropElement(element.id);
+      }
+    },
+    [selectElement, setCropElement],
+  );
+
+  const handleElementMove = useCallback(
+    (elementId: string, dx: number, dy: number) => {
+      const state = useDeckStore.getState();
+      const currentSlide = state.deck?.slides[state.currentSlideIndex];
+      if (!currentSlide) return;
+      const latestSelected = state.selectedElementIds;
+      const allIds = new Set(latestSelected);
+      if (latestSelected.length > 1) {
+        for (const id of latestSelected) {
+          const el = currentSlide.elements.find((e) => e.id === id);
+          if (el?.groupId) {
+            for (const m of currentSlide.elements) {
+              if (m.groupId === el.groupId) allIds.add(m.id);
+            }
+          }
+        }
+      }
+      const idsToMove = allIds.has(elementId) ? [...allIds] : [elementId];
+      for (const elId of idsToMove) {
+        const el = currentSlide.elements.find((e) => e.id === elId);
+        if (el) {
+          updateElement(currentSlide.id, elId, {
+            position: { x: el.position.x + dx, y: el.position.y + dy },
+          } as Partial<SlideElement>);
+        }
+      }
+    },
+    [updateElement],
+  );
+
+  const handleElementResize = useCallback(
+    (elementId: string, dx: number, dy: number, dw: number, dh: number) => {
+      const state = useDeckStore.getState();
+      const currentSlide = state.deck?.slides[state.currentSlideIndex];
+      if (!currentSlide) return;
+      const el = currentSlide.elements.find((e) => e.id === elementId);
+      if (!el) return;
+      updateElement(currentSlide.id, elementId, {
+        position: { x: el.position.x + dx, y: el.position.y + dy },
+        size: { w: Math.max(20, el.size.w + dw), h: Math.max(20, el.size.h + dh) },
+      } as Partial<SlideElement>);
+    },
+    [updateElement],
+  );
+
+  const handleElementContextMenu = useCallback(
+    (elementId: string, x: number, y: number) => {
+      const state = useDeckStore.getState();
+      const currentSlide = state.deck?.slides[state.currentSlideIndex];
+      if (!currentSlide) return;
+      setContextMenu({ x, y, slideId: currentSlide.id, elementId });
+    },
+    [],
   );
 
   // Group data for rendering bounding boxes with resize handles
@@ -127,61 +205,11 @@ export function SelectionOverlay({ slide, scale }: Props) {
           slideId={slide.id}
           isSelected={selectedElementIds.includes(element.id) || moveTargetIds.has(element.id)}
           showResizeHandles={element.id === singleSelectedId && !isCropping}
-          onSelect={(e: React.MouseEvent) => handleSelect(element, e)}
-          onDoubleClick={() => {
-            if (element.type === "reference") {
-              useDeckStore.getState().enterComponentEditMode((element as ReferenceElementType).componentId);
-            } else if (element.groupId) {
-              // Double-click a grouped element → isolate-select just that element
-              selectElement(element.id);
-            } else if ((element.type === "image" || element.type === "video") && !isCropping) {
-              setCropElement(element.id);
-            }
-          }}
-          onMove={(dx, dy) => {
-            // Read latest selection from store (not stale closure)
-            // so first click-drag on a group member works immediately.
-            const latestSelected = useDeckStore.getState().selectedElementIds;
-            const allIds = new Set(latestSelected);
-            // Only expand to group members when multiple are selected (not isolate-select)
-            if (latestSelected.length > 1) {
-              for (const id of latestSelected) {
-                const el = slide.elements.find((e) => e.id === id);
-                if (el?.groupId) {
-                  for (const m of slide.elements) {
-                    if (m.groupId === el.groupId) allIds.add(m.id);
-                  }
-                }
-              }
-            }
-            const idsToMove = allIds.has(element.id) ? [...allIds] : [element.id];
-            for (const elId of idsToMove) {
-              const el = slide.elements.find((e) => e.id === elId);
-              if (el) {
-                updateElement(slide.id, elId, {
-                  position: {
-                    x: el.position.x + dx,
-                    y: el.position.y + dy,
-                  },
-                } as Partial<SlideElement>);
-              }
-            }
-          }}
-          onResize={(dx, dy, dw, dh) => {
-            updateElement(slide.id, element.id, {
-              position: {
-                x: element.position.x + dx,
-                y: element.position.y + dy,
-              },
-              size: {
-                w: Math.max(20, element.size.w + dw),
-                h: Math.max(20, element.size.h + dh),
-              },
-            } as Partial<SlideElement>);
-          }}
-          onContextMenu={(x, y) => {
-            setContextMenu({ x, y, slideId: slide.id, elementId: element.id });
-          }}
+          onSelect={handleElementSelect}
+          onDoubleClick={handleElementDoubleClick}
+          onMove={handleElementMove}
+          onResize={handleElementResize}
+          onContextMenu={handleElementContextMenu}
           scale={scale}
         />
       ))}
@@ -236,11 +264,11 @@ interface InteractiveProps {
   showResizeHandles: boolean;
   isHighlighted: boolean;
   hasComment: boolean;
-  onSelect: (e: React.MouseEvent) => void;
-  onDoubleClick: () => void;
-  onMove: (dx: number, dy: number) => void;
-  onResize: (dx: number, dy: number, dw: number, dh: number) => void;
-  onContextMenu: (x: number, y: number) => void;
+  onSelect: (elementId: string, e: React.MouseEvent) => void;
+  onDoubleClick: (elementId: string) => void;
+  onMove: (elementId: string, dx: number, dy: number) => void;
+  onResize: (elementId: string, dx: number, dy: number, dw: number, dh: number) => void;
+  onContextMenu: (elementId: string, x: number, y: number) => void;
   scale: number;
 }
 
@@ -286,15 +314,15 @@ const InteractiveElement = memo(function InteractiveElement({ element, isSelecte
         // — preserves multi-selection when right-clicking a member
         e.stopPropagation();
         if (!useDeckStore.getState().selectedElementIds.includes(element.id)) {
-          onSelect(e);
+          onSelect(element.id, e);
         }
         if (waypointInfo) {
-          onContextMenu(
+          onContextMenu(element.id,
             waypointInfo.left + e.nativeEvent.offsetX,
             waypointInfo.top + e.nativeEvent.offsetY,
           );
         } else {
-          onContextMenu(
+          onContextMenu(element.id,
             element.position.x + e.nativeEvent.offsetX,
             element.position.y + e.nativeEvent.offsetY,
           );
@@ -312,7 +340,7 @@ const InteractiveElement = memo(function InteractiveElement({ element, isSelecte
       // Skip re-selection on plain click if already selected — preserves multi-select for drag.
       const alreadySelected = useDeckStore.getState().selectedElementIds.includes(element.id);
       if (!alreadySelected || e.shiftKey || e.ctrlKey || e.metaKey) {
-        onSelect(e);
+        onSelect(element.id, e);
       }
       setDeckDragging(true);
       dragStart.current = {
@@ -357,7 +385,7 @@ const InteractiveElement = memo(function InteractiveElement({ element, isSelecte
           if (!dragStart.current) return;
           const dx = (me.clientX - dragStart.current.x) / scale;
           const dy = (me.clientY - dragStart.current.y) / scale;
-          onMove(
+          onMove(element.id,
             Math.round(dragStart.current.ex + dx - element.position.x),
             Math.round(dragStart.current.ey + dy - element.position.y),
           );
@@ -470,7 +498,7 @@ const InteractiveElement = memo(function InteractiveElement({ element, isSelecte
             dy = isTop ? Math.round(-(1 - cb) * dh) : Math.round(-ct * dh);
           }
 
-          onResize(
+          onResize(element.id,
             (origX + dx) - element.position.x,
             (origY + dy) - element.position.y,
             (origW + dw) - element.size.w,
@@ -528,7 +556,7 @@ const InteractiveElement = memo(function InteractiveElement({ element, isSelecte
             onMouseDown={handleMouseDown}
             onDoubleClick={(e) => {
               e.stopPropagation();
-              onDoubleClick();
+              onDoubleClick(element.id);
             }}
           />
         )}

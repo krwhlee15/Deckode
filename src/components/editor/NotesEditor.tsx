@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useDeckStore } from "@/stores/deckStore";
-import { useGitDiff } from "@/hooks/useGitDiff";
+import { useGitDiff } from "@/contexts/GitDiffContext";
 
 interface Props {
   expanded: boolean;
@@ -9,14 +9,11 @@ interface Props {
 }
 
 export function NotesEditor({ expanded, onToggle, showDiff = false }: Props) {
-  const deck = useDeckStore((s) => s.deck);
-  const currentSlideIndex = useDeckStore((s) => s.currentSlideIndex);
+  const slide = useDeckStore((s) => s.deck?.slides[s.currentSlideIndex]);
   const updateSlide = useDeckStore((s) => s.updateSlide);
   const gitDiff = useGitDiff();
   const [showBase, setShowBase] = useState(false);
 
-  if (!deck) return null;
-  const slide = deck.slides[currentSlideIndex];
   if (!slide) return null;
 
   const currentNotes = slide.notes ?? "";

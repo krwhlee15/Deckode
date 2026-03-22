@@ -7,6 +7,7 @@ import { PresenterView } from "@/components/presenter/PresenterView";
 import { ViewOnlyPresentation } from "@/components/presenter/ViewOnlyPresentation";
 import { ProjectSelector } from "@/components/ProjectSelector";
 import { AdapterProvider } from "@/contexts/AdapterContext";
+import { GitDiffProvider } from "@/contexts/GitDiffContext";
 import { ViteApiAdapter } from "@/adapters/viteApi";
 import { ReadOnlyAdapter } from "@/adapters/readOnly";
 import { loadDeckFromDisk } from "@/utils/api";
@@ -354,7 +355,9 @@ export function App() {
           </button>
         </div>
       )}
-      {isAudiencePopup ? <PresenterView /> : <EditorLayout />}
+      {isAudiencePopup ? <PresenterView /> : import.meta.env.DEV
+        ? <GitDiffProvider><EditorLayout /></GitDiffProvider>
+        : <EditorLayout />}
     </AdapterProvider>
   );
 }

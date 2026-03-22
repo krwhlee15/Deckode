@@ -21,7 +21,7 @@ import { useAdapter } from "@/contexts/AdapterContext";
 import type { Slide, DeckTheme } from "@/types/deck";
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from "@/types/deck";
 import type { LayoutInfo } from "@/adapters/types";
-import { useGitDiff } from "@/hooks/useGitDiff";
+import { useGitDiff } from "@/contexts/GitDiffContext";
 
 interface SlideContextMenuState {
   x: number;
@@ -216,6 +216,45 @@ export function SlideList({ showDiff = false }: { showDiff?: boolean }) {
   const gitDiff = useGitDiff();
   const effectiveGitChangedIds = showDiff && gitDiff.available ? gitDiff.changedSlideIds : null;
 
+  const handleSlideSelect = useCallback(
+    (index: number, e: React.MouseEvent) => {
+      const state = useDeckStore.getState();
+      const allSlides = state.deck?.slides;
+      if (!allSlides) return;
+      const slideId = allSlides[index]?.id;
+      if (!slideId) return;
+      const sel = state.selectedSlideIds;
+
+      if (e.ctrlKey || e.metaKey) {
+        const newIds = sel.includes(slideId)
+          ? sel.filter((id) => id !== slideId)
+          : [...sel, slideId];
+        setSelectedSlides(newIds.length > 0 ? newIds : [slideId]);
+        useDeckStore.setState({ currentSlideIndex: index, selectedElementIds: [] });
+      } else if (e.shiftKey) {
+        const ci = state.currentSlideIndex;
+        const start = Math.min(ci, index);
+        const end = Math.max(ci, index);
+        const rangeIds = allSlides.slice(start, end + 1).map((s) => s.id);
+        setSelectedSlides(rangeIds);
+        useDeckStore.setState({ currentSlideIndex: index, selectedElementIds: [] });
+      } else {
+        setCurrentSlide(index);
+      }
+    },
+    [setSelectedSlides, setCurrentSlide],
+  );
+
+  const handleSlideContextMenu = useCallback(
+    (index: number, x: number, y: number) => {
+      const state = useDeckStore.getState();
+      const slideId = state.deck?.slides[index]?.id;
+      if (!slideId) return;
+      setContextMenu({ x, y, slideId, slideIndex: index });
+    },
+    [],
+  );
+
   return (
     <div ref={listRef} className="flex flex-col gap-1.5 p-2 overflow-y-auto">
       <DndContext
@@ -237,26 +276,8 @@ export function SlideList({ showDiff = false }: { showDiff?: boolean }) {
               observeRef={observe}
               hasComments={!!slide.comments?.some((c) => c.category !== "done")}
               gitChanged={!!effectiveGitChangedIds?.has(slide.id)}
-              onSelect={(e: React.MouseEvent) => {
-                if (e.ctrlKey || e.metaKey) {
-                  // Toggle in/out of selection
-                  const newIds = selectedSlideIds.includes(slide.id)
-                    ? selectedSlideIds.filter((id) => id !== slide.id)
-                    : [...selectedSlideIds, slide.id];
-                  setSelectedSlides(newIds.length > 0 ? newIds : [slide.id]);
-                  useDeckStore.setState({ currentSlideIndex: index, selectedElementIds: [] });
-                } else if (e.shiftKey) {
-                  // Range select from currentSlideIndex to clicked index
-                  const start = Math.min(currentSlideIndex, index);
-                  const end = Math.max(currentSlideIndex, index);
-                  const rangeIds = slides.slice(start, end + 1).map((s) => s.id);
-                  setSelectedSlides(rangeIds);
-                  useDeckStore.setState({ currentSlideIndex: index, selectedElementIds: [] });
-                } else {
-                  setCurrentSlide(index);
-                }
-              }}
-              onContextMenu={(x, y) => setContextMenu({ x, y, slideId: slide.id, slideIndex: index })}
+              onSelect={handleSlideSelect}
+              onContextMenu={handleSlideContextMenu}
               theme={theme}
             />
           ))}
@@ -366,8 +387,8 @@ const SortableSlideItem = memo(function SortableSlideItem({
   observeRef: (id: string, el: Element | null) => void;
   hasComments: boolean;
   gitChanged: boolean;
-  onSelect: (e: React.MouseEvent) => void;
-  onContextMenu: (x: number, y: number) => void;
+  onSelect: (index: number, e: React.MouseEvent) => void;
+  onContextMenu: (index: number, x: number, y: number) => void;
   theme?: DeckTheme;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
@@ -393,15 +414,15 @@ const SortableSlideItem = memo(function SortableSlideItem({
   const handleContextMenu = useCallback(
     (e: React.MouseEvent) => {
       e.preventDefault();
-      onContextMenu(e.clientX, e.clientY);
+      onContextMenu(index, e.clientX, e.clientY);
     },
-    [onContextMenu],
+    [onContextMenu, index],
   );
 
   return (
     <div ref={thumbRef} style={style} {...attributes} {...listeners} className="relative group shrink-0" onContextMenu={handleContextMenu} data-slide-thumb-id={slide.id}>
       <button
-        onClick={onSelect}
+        onClick={(e) => onSelect(index, e)}
         className={`rounded border-2 transition-colors p-0.5 ${
           isCurrent
             ? "border-blue-500"

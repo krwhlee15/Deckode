@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { useDeckStore } from "@/stores/deckStore";
 import type { Comment, CommentCategory } from "@/types/deck";
 import { FieldLabel } from "./fields";
-import { useGitDiff } from "@/hooks/useGitDiff";
+import { useGitDiff } from "@/contexts/GitDiffContext";
 
 const CATEGORIES: { value: CommentCategory; label: string; color: string }[] = [
   { value: "content", label: "Content", color: "#f59e0b" },
@@ -35,14 +35,12 @@ interface Props {
 }
 
 export function CommentList({ slideId, elementId }: Props) {
-  const deck = useDeckStore((s) => s.deck);
+  const slide = useDeckStore((s) => s.deck?.slides.find((sl) => sl.id === slideId));
   const addComment = useDeckStore((s) => s.addComment);
   const updateComment = useDeckStore((s) => s.updateComment);
   const deleteComment = useDeckStore((s) => s.deleteComment);
   const selectElement = useDeckStore((s) => s.selectElement);
   const gitDiff = useGitDiff();
-
-  const slide = deck?.slides.find((s) => s.id === slideId);
   const allComments = slide?.comments ?? [];
 
   // Build comment diff map: commentId -> "added" | "modified" | "removed"

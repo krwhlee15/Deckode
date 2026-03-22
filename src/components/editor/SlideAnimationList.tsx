@@ -19,8 +19,7 @@ interface Props {
 }
 
 export function SlideAnimationList({ onSelectElement }: Props) {
-  const deck = useDeckStore((s) => s.deck);
-  const currentSlideIndex = useDeckStore((s) => s.currentSlideIndex);
+  const slide = useDeckStore((s) => s.deck?.slides[s.currentSlideIndex]);
   const addAnimation = useDeckStore((s) => s.addAnimation);
   const updateAnimation = useDeckStore((s) => s.updateAnimation);
   const deleteAnimation = useDeckStore((s) => s.deleteAnimation);
@@ -30,9 +29,7 @@ export function SlideAnimationList({ onSelectElement }: Props) {
   const dragIndexRef = useRef<number | null>(null);
   const [dropTarget, setDropTarget] = useState<number | null>(null);
 
-  if (!deck) return null;
-
-  const slide = deck.slides[currentSlideIndex]!;
+  if (!slide) return null;
   const animations = slide.animations ?? [];
   const elements = slide.elements;
 

@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect, useCallback } from "react";
+import { useRef, useState, useEffect, useCallback, memo } from "react";
 import { useDeckStore } from "@/stores/deckStore";
 import { usePreviewStore } from "@/stores/previewStore";
 import { SlideRenderer } from "@/components/renderer/SlideRenderer";
@@ -9,7 +9,7 @@ import { SelectionOverlay, TrimOverlay } from "./SelectionOverlay";
 import { useAdapter } from "@/contexts/AdapterContext";
 import { assert } from "@/utils/assert";
 import { ComponentEditOverlay } from "./ComponentEditOverlay";
-import { useGitDiff } from "@/hooks/useGitDiff";
+import { useGitDiff } from "@/contexts/GitDiffContext";
 
 interface MarqueeRect {
   startX: number;
@@ -21,11 +21,11 @@ interface MarqueeRect {
 const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 5;
 
-export function EditorCanvas({ showDiff = false }: { showDiff?: boolean }) {
-  const deck = useDeckStore((s) => s.deck);
+export const EditorCanvas = memo(function EditorCanvas({ showDiff = false }: { showDiff?: boolean }) {
+  const slide = useDeckStore((s) => s.deck?.slides[s.currentSlideIndex]);
   const currentSlideIndex = useDeckStore((s) => s.currentSlideIndex);
-  const slide = deck?.slides[currentSlideIndex];
-  const theme = deck?.theme;
+  const theme = useDeckStore((s) => s.deck?.theme);
+  const deck = useDeckStore((s) => s.deck);
   const selectElement = useDeckStore((s) => s.selectElement);
   const selectElements = useDeckStore((s) => s.selectElements);
   const addElement = useDeckStore((s) => s.addElement);
@@ -802,4 +802,4 @@ export function EditorCanvas({ showDiff = false }: { showDiff?: boolean }) {
       )}
     </div>
   );
-}
+});

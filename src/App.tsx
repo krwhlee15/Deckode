@@ -253,6 +253,10 @@ export function App() {
                 slideModifiedRef.current.set(slide._ref, f.lastModified);
               } else if (f.lastModified !== prev) {
                 slideModifiedRef.current.set(slide._ref, f.lastModified);
+                // Check if this is our own save by comparing content with cache
+                const content = await f.text();
+                const slideId = (slide as any).id ?? slide._ref;
+                if (fsAdapter.isSlideRefCached(slideId, content)) continue; // self-save, skip
                 deckChanged = true;
                 break;
               }

@@ -39,6 +39,11 @@ export class FsAccessAdapter implements FileSystemAdapter {
   private _lastSaveHash: number | null = null;
   private _slideRefCache = new Map<string, string>();
 
+  /** Check if a slide's content matches the last saved/loaded version (self-save detection) */
+  isSlideRefCached(slideId: string, content: string): boolean {
+    return this._slideRefCache.get(slideId) === content;
+  }
+
   get lastSaveHash(): number | null {
     return this._lastSaveHash;
   }

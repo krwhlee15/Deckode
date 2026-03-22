@@ -561,6 +561,7 @@ const InteractiveElement = memo(function InteractiveElement({ element, isSelecte
   return (
     <>
       <motion.div
+        data-element-id={element.id}
         className="absolute cursor-move select-none"
         style={{
           ...(waypointInfo

@@ -192,7 +192,10 @@ export function VideoElementRenderer({ element, thumbnail, videoStep, editorMode
     willChange: "transform",
   };
 
-  const { type, embedUrl } = parseVideoUrl(resolvedSrc ?? element.src);
+  // Wait for asset resolution to avoid 404s from relative paths in deployed environments
+  const effectiveSrc = resolvedSrc ?? (element.src?.startsWith("./") ? undefined : element.src);
+  const { type, embedUrl } = parseVideoUrl(effectiveSrc || "");
+  const hasSrc = !!effectiveSrc;
   const isLocal = type === "native";
   const firstFrame = useFirstFrame(thumbnail && isLocal ? embedUrl : undefined);
 
@@ -289,7 +292,7 @@ export function VideoElementRenderer({ element, thumbnail, videoStep, editorMode
     return (
       <video
         ref={videoRef}
-        src={embedUrl}
+        src={hasSrc ? embedUrl : undefined}
         autoPlay={false}
         loop={element.loop ?? true}
         muted={element.muted ?? true}
@@ -306,7 +309,7 @@ export function VideoElementRenderer({ element, thumbnail, videoStep, editorMode
       <div className="group/video" style={{ position: "relative", width: w, height: h }}>
         <video
           ref={videoRef}
-          src={embedUrl}
+          src={hasSrc ? embedUrl : undefined}
           autoPlay={shouldAutoPlay}
           loop={element.loop ?? true}
           muted={element.muted ?? true}
@@ -327,7 +330,7 @@ export function VideoElementRenderer({ element, thumbnail, videoStep, editorMode
   return (
     <video
       ref={videoRef}
-      src={embedUrl}
+      src={hasSrc ? embedUrl : undefined}
       autoPlay={shouldAutoPlay}
       loop={element.loop ?? true}
       muted={element.muted ?? true}

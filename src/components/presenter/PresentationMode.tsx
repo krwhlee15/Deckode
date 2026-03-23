@@ -847,6 +847,11 @@ function PresenterConsole({
                 onChange={(e) => setNoteDraft(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === "Escape") handleSaveNotes();
+                  if ((e.ctrlKey || e.metaKey) && e.key === "s") {
+                    e.preventDefault();
+                    handleSaveNotes();
+                    return;
+                  }
                   if ((e.ctrlKey || e.metaKey) && e.key === "/") {
                     e.preventDefault();
                     const ta = e.currentTarget;

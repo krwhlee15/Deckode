@@ -553,6 +553,7 @@ export function EditorLayout() {
             Diff
           </button>
         )}
+        <AnimOrderToggle />
         <button
           onClick={() => setRightPanel(rightPanel === "theme" ? "properties" : "theme")}
           className={`text-xs px-2 py-1 rounded transition-colors ${
@@ -678,3 +679,17 @@ export function EditorLayout() {
   );
 }
 
+function AnimOrderToggle() {
+  const active = useDeckStore((s) => s.showAnimationOrder);
+  return (
+    <button
+      onClick={() => useDeckStore.setState({ showAnimationOrder: !active })}
+      className={`text-xs px-2 py-1 rounded transition-colors ${
+        active ? "bg-blue-600 text-white" : "bg-zinc-800 text-zinc-400 hover:text-zinc-200"
+      }`}
+      title="Show animation order on canvas"
+    >
+      Anim#
+    </button>
+  );
+}

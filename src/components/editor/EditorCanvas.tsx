@@ -760,11 +760,14 @@ export const EditorCanvas = memo(function EditorCanvas({ showDiff = false }: { s
             style={{ transform: `scale(${scale})`, transformOrigin: "top left" }}
           >
             {(() => {
+              // Compute execution step numbers: withPrevious shares the same step
               const byTarget = new Map<string, number[]>();
-              slide.animations!.forEach((anim, idx) => {
+              let step = 0;
+              slide.animations!.forEach((anim) => {
+                if (anim.trigger !== "withPrevious") step++;
                 let list = byTarget.get(anim.target);
                 if (!list) { list = []; byTarget.set(anim.target, list); }
-                list.push(idx + 1);
+                if (!list.includes(step)) list.push(step);
               });
               return [...byTarget.entries()].map(([targetId, indices]) => {
                 const el = slide.elements.find((e) => e.id === targetId);

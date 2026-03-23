@@ -29,6 +29,7 @@ export function SlideAnimationList({ onSelectElement }: Props) {
 
   const dragIndexRef = useRef<number | null>(null);
   const [dropTarget, setDropTarget] = useState<number | null>(null);
+  const [focusedIdx, setFocusedIdx] = useState<number | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to highlighted animation and clear after delay
@@ -90,14 +91,25 @@ export function SlideAnimationList({ onSelectElement }: Props) {
     startPreview(animations, delays, flashTimes);
   };
 
+  const scrollToCard = (idx: number) => {
+    requestAnimationFrame(() => {
+      const card = listRef.current?.children[idx] as HTMLElement | undefined;
+      card?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    });
+  };
+
   const handleMoveUp = (index: number) => {
     if (index <= 0) return;
     moveAnimation(slide.id, index, index - 1);
+    setFocusedIdx(index - 1);
+    scrollToCard(index - 1);
   };
 
   const handleMoveDown = (index: number) => {
     if (index >= animations.length - 1) return;
     moveAnimation(slide.id, index, index + 1);
+    setFocusedIdx(index + 1);
+    scrollToCard(index + 1);
   };
 
   // Find element type+id label for a target
@@ -124,6 +136,29 @@ export function SlideAnimationList({ onSelectElement }: Props) {
         )}
       </div>
 
+      {/* Fixed move controls for focused animation */}
+      {focusedIdx !== null && focusedIdx < animations.length && (
+        <div className="flex items-center gap-1 px-1 py-1 bg-zinc-800 border border-zinc-700 rounded text-xs">
+          <span className="text-zinc-400 truncate flex-1">
+            {focusedIdx + 1}. {getTargetLabel(animations[focusedIdx]!.target)}
+          </span>
+          <button
+            onClick={() => handleMoveUp(focusedIdx)}
+            disabled={focusedIdx <= 0}
+            className="px-1.5 py-0.5 rounded text-zinc-400 hover:text-white hover:bg-zinc-700 disabled:opacity-30 transition-colors"
+          >▲</button>
+          <button
+            onClick={() => handleMoveDown(focusedIdx)}
+            disabled={focusedIdx >= animations.length - 1}
+            className="px-1.5 py-0.5 rounded text-zinc-400 hover:text-white hover:bg-zinc-700 disabled:opacity-30 transition-colors"
+          >▼</button>
+          <button
+            onClick={() => setFocusedIdx(null)}
+            className="px-1 py-0.5 rounded text-zinc-500 hover:text-zinc-300 transition-colors"
+          >✕</button>
+        </div>
+      )}
+
       {animations.length === 0 && (
         <div className="text-zinc-600 text-xs">No animations on this slide</div>
       )}
@@ -136,6 +171,7 @@ export function SlideAnimationList({ onSelectElement }: Props) {
             key={index}
             data-anim-target={anim.target}
             draggable
+            onClick={() => setFocusedIdx(index === focusedIdx ? null : index)}
             onDragStart={() => { dragIndexRef.current = index; }}
             onDragOver={(e) => { e.preventDefault(); setDropTarget(index); }}
             onDragLeave={() => { if (dropTarget === index) setDropTarget(null); }}
@@ -148,7 +184,7 @@ export function SlideAnimationList({ onSelectElement }: Props) {
             }}
             onDragEnd={() => { dragIndexRef.current = null; setDropTarget(null); }}
             className={`bg-zinc-800/50 border rounded p-2 space-y-1.5 cursor-grab active:cursor-grabbing transition-colors ${
-              isHighlighted ? "border-blue-400 bg-blue-900/20" : dropTarget === index ? "border-blue-500" : "border-zinc-700"
+              focusedIdx === index ? "border-blue-400 bg-blue-900/20" : isHighlighted ? "border-blue-400 bg-blue-900/10" : dropTarget === index ? "border-blue-500" : "border-zinc-700"
             }`}
           >
             {/* Header: index + target + actions */}
@@ -163,7 +199,7 @@ export function SlideAnimationList({ onSelectElement }: Props) {
               <div className="flex items-center gap-0.5 shrink-0">
                 <button
                   className="text-zinc-600 hover:text-zinc-300 text-xs px-0.5"
-                  onClick={() => handleMoveUp(index)}
+                  onClick={(e) => { e.stopPropagation(); handleMoveUp(index); }}
                   title="Move up"
                   disabled={index === 0}
                 >
@@ -171,7 +207,7 @@ export function SlideAnimationList({ onSelectElement }: Props) {
                 </button>
                 <button
                   className="text-zinc-600 hover:text-zinc-300 text-xs px-0.5"
-                  onClick={() => handleMoveDown(index)}
+                  onClick={(e) => { e.stopPropagation(); handleMoveDown(index); }}
                   title="Move down"
                   disabled={index === animations.length - 1}
                 >

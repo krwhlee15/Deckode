@@ -477,6 +477,12 @@ export function PresentationMode({ onExit }: PresentationModeProps) {
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
+      // Don't intercept keys when typing in a text field
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === "TEXTAREA" || tag === "INPUT") {
+        // Still allow Escape to exit note editing
+        if (e.key !== "Escape") return;
+      }
       if (e.key === "Escape") {
         handleExit();
       } else if (e.key === "ArrowRight" || e.key === " ") {

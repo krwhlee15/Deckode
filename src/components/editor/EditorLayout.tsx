@@ -502,6 +502,26 @@ export function EditorLayout() {
                 onClick={() => {
                   setPdfMenuOpen(false);
                   const deck = useDeckStore.getState().deck;
+                  if (deck) exportToPdf(deck, adapter, { scale: 2, format: "jpeg", quality: 0.92 });
+                }}
+                className="w-full text-left text-xs px-3 py-2 text-zinc-300 hover:bg-zinc-700 hover:text-white transition-colors"
+              >
+                PDF (Image High)
+              </button>
+              <button
+                onClick={() => {
+                  setPdfMenuOpen(false);
+                  const deck = useDeckStore.getState().deck;
+                  if (deck) exportToPdf(deck, adapter, { scale: 2, format: "jpeg", quality: 0.8 });
+                }}
+                className="w-full text-left text-xs px-3 py-2 text-zinc-300 hover:bg-zinc-700 hover:text-white transition-colors"
+              >
+                PDF (Image Balanced)
+              </button>
+              <button
+                onClick={() => {
+                  setPdfMenuOpen(false);
+                  const deck = useDeckStore.getState().deck;
                   if (deck) exportToPdf(deck, adapter, { scale: 1, format: "jpeg", quality: 0.7 });
                 }}
                 className="w-full text-left text-xs px-3 py-2 text-zinc-300 hover:bg-zinc-700 hover:text-white transition-colors"

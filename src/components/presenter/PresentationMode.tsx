@@ -4,6 +4,7 @@ import { SlideRenderer } from "@/components/renderer/SlideRenderer";
 import { usePresentationChannel } from "@/hooks/usePresentationChannel";
 import { useAdapter } from "@/contexts/AdapterContext";
 import { computeSteps } from "@/utils/animationSteps";
+import { useTtsAutoPlay, getTextForStep } from "@/hooks/useTtsAutoPlay";
 import type { AnimationStep } from "@/utils/animationSteps";
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from "@/types/deck";
 import type { Deck, Slide, SlideElement, SlideTransition, DeckTheme, PageNumberConfig } from "@/types/deck";
@@ -217,6 +218,39 @@ export function PresentationMode({ onExit }: PresentationModeProps) {
     }
     setPrevSlideIdx(currentSlideIndex);
   }
+
+  // ── TTS Auto-play ──
+  const [ttsPlaying, setTtsPlaying] = useState(false);
+  const [ttsRate, setTtsRate] = useState(1.0);
+
+  const ttsText = useMemo(
+    () => getTextForStep(noteSegments, activeStep, steps.length),
+    [noteSegments, activeStep, steps.length],
+  );
+
+  const ttsAdvance = useCallback(() => {
+    if (activeStepRef.current < stepsRef.current.length) {
+      setActiveStep((prev) => prev + 1);
+    } else {
+      // Move to next slide
+      const vs = visibleSlidesRef.current;
+      const pos = visiblePositionRef.current;
+      if (pos !== -1 && pos + 1 < vs.length) {
+        pendingStepRef.current = 0;
+        setCurrentSlide(vs[pos + 1]!.originalIndex);
+      } else {
+        // End of presentation
+        setTtsPlaying(false);
+      }
+    }
+  }, [setCurrentSlide]);
+
+  useTtsAutoPlay({
+    text: ttsText,
+    onStepDone: ttsAdvance,
+    playing: ttsPlaying,
+    rate: ttsRate,
+  });
 
   // Timer
   useEffect(() => {
@@ -447,17 +481,21 @@ export function PresentationMode({ onExit }: PresentationModeProps) {
         handleExit();
       } else if (e.key === "ArrowRight" || e.key === " ") {
         e.preventDefault();
+        setTtsPlaying(false);
         advanceRef.current();
       } else if (e.key === "ArrowLeft") {
         e.preventDefault();
+        setTtsPlaying(false);
         goBack();
       } else if (e.key === "ArrowDown") {
         e.preventDefault();
         e.stopPropagation();
+        setTtsPlaying(false);
         jumpSlideRef.current(1);
       } else if (e.key === "ArrowUp") {
         e.preventDefault();
         e.stopPropagation();
+        setTtsPlaying(false);
         jumpSlideRef.current(-1);
       } else if (e.code === "KeyP") {
         setViewMode((m) => (m === "presenter" ? "audience" : "presenter"));
@@ -539,6 +577,10 @@ export function PresentationMode({ onExit }: PresentationModeProps) {
       }
       skipAnim={skipAnim}
       onToggleSkipAnim={() => setSkipAnim((s) => !s)}
+      ttsPlaying={ttsPlaying}
+      onToggleTts={() => setTtsPlaying((p) => !p)}
+      ttsRate={ttsRate}
+      onTtsRateChange={setTtsRate}
     />
   );
 }
@@ -569,6 +611,10 @@ function PresenterConsole({
   onToggleViewMode,
   skipAnim,
   onToggleSkipAnim,
+  ttsPlaying,
+  onToggleTts,
+  ttsRate,
+  onTtsRateChange,
 }: {
   slide: Slide;
   nextSlide: Slide | null;
@@ -593,6 +639,10 @@ function PresenterConsole({
   onToggleViewMode: () => void;
   skipAnim: boolean;
   onToggleSkipAnim: () => void;
+  ttsPlaying: boolean;
+  onToggleTts: () => void;
+  ttsRate: number;
+  onTtsRateChange: (rate: number) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const slideAreaRef = useRef<HTMLDivElement>(null);
@@ -1011,6 +1061,30 @@ function PresenterConsole({
           >
             Skip Anim
           </button>
+          <button
+            onClick={onToggleTts}
+            className={`text-xs px-2 py-0.5 rounded transition-colors ${
+              ttsPlaying
+                ? "bg-green-600 text-white"
+                : "bg-zinc-800 text-zinc-400 hover:text-zinc-200"
+            }`}
+            title="Auto-play: read notes aloud and advance animations"
+          >
+            {ttsPlaying ? "Stop" : "Play"}
+          </button>
+          <select
+            value={ttsRate}
+            onChange={(e) => onTtsRateChange(parseFloat(e.target.value))}
+            className="text-[10px] bg-zinc-800 text-zinc-400 rounded px-1 py-0.5 border-none outline-none"
+            title="Speech rate"
+          >
+            <option value={0.5}>0.5x</option>
+            <option value={0.75}>0.75x</option>
+            <option value={1}>1x</option>
+            <option value={1.25}>1.25x</option>
+            <option value={1.5}>1.5x</option>
+            <option value={2}>2x</option>
+          </select>
           <button
             onClick={onPointerToggle}
             className={`text-xs px-2 py-0.5 rounded transition-colors ${

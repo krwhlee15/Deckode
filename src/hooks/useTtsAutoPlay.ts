@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 interface TtsAutoPlayOptions {
   /** Text to speak for the current step */
@@ -73,7 +73,6 @@ export function useTtsAutoPlay({ text, onStepDone, playing, rate }: TtsAutoPlayO
 export function getTextForStep(
   noteSegments: { text: string; step: number | null }[],
   activeStep: number,
-  totalSteps: number,
 ): string {
   const parts: string[] = [];
   for (const seg of noteSegments) {

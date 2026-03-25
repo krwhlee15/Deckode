@@ -224,7 +224,7 @@ export function PresentationMode({ onExit }: PresentationModeProps) {
   const [ttsRate, setTtsRate] = useState(1.0);
 
   const ttsText = useMemo(
-    () => getTextForStep(noteSegments, activeStep, steps.length),
+    () => getTextForStep(noteSegments, activeStep),
     [noteSegments, activeStep, steps.length],
   );
 

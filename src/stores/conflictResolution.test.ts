@@ -6,7 +6,7 @@
  * controllable async save behavior (delays, 409 conflicts).
  */
 import { describe, it, expect, beforeEach } from "vitest";
-import { useDeckStore, setStoreAdapter, getLastSavedDeck, setLastSavedDeck, selectIsDirty } from "./deckStore";
+import { useDeckStore, setStoreAdapter, getLastSavedDeck, selectIsDirty } from "./deckStore";
 import { mergeDeck } from "@/utils/deckDiff";
 import type { Deck, Slide } from "@/types/deck";
 import type { FileSystemAdapter } from "@/adapters/types";
@@ -221,53 +221,36 @@ describe("save + external change race", () => {
 // ============================================================
 
 describe("base snapshot — consecutive external merges", () => {
-  it("tryMerge updates base so second external change merges correctly", () => {
-    // Simulate what App.tsx tryMerge does
-
+  it("mergeExternalChange updates base so second external change merges correctly", () => {
     // First external change: s0 modified externally
     const remote1 = deck();
     remote1.slides[0]!.elements[0]!.content = "External v1";
 
-    const base1 = getLastSavedDeck()!;
-    const local1 = useDeckStore.getState().deck!;
-    const result1 = mergeDeck(base1, local1, remote1);
-    expect(result1.merged).not.toBeNull();
-
-    // Apply merge result like App.tsx does
-    setLastSavedDeck(remote1); // <-- the fix: base = disk state
-    useDeckStore.getState().replaceDeck(result1.merged!);
+    const result1 = useDeckStore.getState().mergeExternalChange(remote1);
+    expect(result1).toBe("merged");
 
     // Second external change: s1 modified externally
-    const remote2 = structuredClone(remote1); // builds on remote1
+    const remote2 = structuredClone(remote1);
     remote2.slides[1]!.elements[0]!.content = "External v2";
 
-    const base2 = getLastSavedDeck()!;
-    const local2 = useDeckStore.getState().deck!;
-    const result2 = mergeDeck(base2, local2, remote2);
+    const result2 = useDeckStore.getState().mergeExternalChange(remote2);
+    expect(result2).toBe("merged");
 
-    // Without the fix (base still = original), this would produce wrong results
-    expect(result2.merged).not.toBeNull();
-    expect(result2.merged!.slides[0]!.elements[0]!.content).toBe("External v1");
-    expect(result2.merged!.slides[1]!.elements[0]!.content).toBe("External v2");
+    // Both changes should be in the store
+    const d = useDeckStore.getState().deck!;
+    expect(d.slides[0]!.elements[0]!.content).toBe("External v1");
+    expect(d.slides[1]!.elements[0]!.content).toBe("External v2");
   });
 
-  it("setLastSavedDeck is called even when merged === local (early return)", () => {
-    // External change that produces a merge identical to local
-    // (e.g., external set same value that local already has)
-    const remote = deck(); // same as local — merge result === local
+  it("mergeExternalChange updates base even when merged === local", () => {
     const baseBefore = getLastSavedDeck()!;
 
-    // Simulate tryMerge logic (with the fix: setLastSavedDeck before early return check)
-    const result = mergeDeck(baseBefore, useDeckStore.getState().deck!, remote);
-    expect(result.merged).not.toBeNull();
+    // External "change" identical to local — merge result === local
+    const remote = deck();
+    const result = useDeckStore.getState().mergeExternalChange(remote);
+    expect(result).toBe("identical");
 
-    // The fix: always update base even if merged === local
-    setLastSavedDeck(remote);
-
-    // Verify merged === local (would have triggered early return in App.tsx)
-    expect(JSON.stringify(result.merged)).toBe(JSON.stringify(useDeckStore.getState().deck));
-
-    // Key: base should be updated to remote, not still the old base
+    // Key: base should still be updated even though store wasn't changed
     const baseAfter = getLastSavedDeck()!;
     expect(baseAfter).not.toBe(baseBefore);
   });
@@ -312,13 +295,11 @@ describe("base snapshot — consecutive external merges", () => {
     }
   });
 
-  it("with setLastSavedDeck, user edit + external change correctly identified", () => {
-    // First external change
+  it("user edit + external change correctly identified after mergeExternalChange", () => {
+    // First external change via store action
     const remote1 = deck();
     remote1.slides[0]!.elements[0]!.content = "External v1";
-    const result1 = mergeDeck(getLastSavedDeck()!, useDeckStore.getState().deck!, remote1);
-    setLastSavedDeck(remote1); // correct base update
-    useDeckStore.getState().replaceDeck(result1.merged!);
+    expect(useDeckStore.getState().mergeExternalChange(remote1)).toBe("merged");
 
     // Now user edits s1 (NOT s0)
     useDeckStore.getState().updateElement("s1", "s1-e0", { content: "User edit" });
@@ -326,18 +307,13 @@ describe("base snapshot — consecutive external merges", () => {
     // Second external change on s0
     const remote2 = structuredClone(remote1);
     remote2.slides[0]!.elements[0]!.content = "External v2";
+    expect(useDeckStore.getState().mergeExternalChange(remote2)).toBe("merged");
 
-    const base = getLastSavedDeck()!; // = remote1
-    const local = useDeckStore.getState().deck!;
-    const result2 = mergeDeck(base, local, remote2);
-
-    expect(result2.merged).not.toBeNull();
-    // s0: base="External v1", local="External v1" (unchanged), remote="External v2"
-    //   → only remote changed → accept remote ✓
-    expect(result2.merged!.slides[0]!.elements[0]!.content).toBe("External v2");
-    // s1: base="Element s1-e0", local="User edit", remote="Element s1-e0"
-    //   → only local changed → keep local ✓
-    expect(result2.merged!.slides[1]!.elements[0]!.content).toBe("User edit");
+    const d = useDeckStore.getState().deck!;
+    // s0: only remote changed → accept remote ✓
+    expect(d.slides[0]!.elements[0]!.content).toBe("External v2");
+    // s1: only local changed → keep local ✓
+    expect(d.slides[1]!.elements[0]!.content).toBe("User edit");
   });
 });
 
@@ -366,11 +342,10 @@ describe("base snapshot — save vs tryMerge race", () => {
     // Start save (captures baseBeforeSave = original deck)
     const savePromise = useDeckStore.getState().saveToDisk();
 
-    // While save is in flight, simulate what tryMerge does:
-    // external change arrived, merge succeeded, base updated
+    // While save is in flight, simulate what file watcher + mergeExternalChange does
     const remoteDeck = deck();
     remoteDeck.slides[1]!.elements[0]!.content = "External change on s1";
-    setLastSavedDeck(remoteDeck);
+    useDeckStore.getState().mergeExternalChange(remoteDeck);
 
     // Save completes
     await savePromise;

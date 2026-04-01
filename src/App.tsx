@@ -1,7 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from "react";
-import { useDeckStore, getLastSavedDeck, setLastSavedDeck, getDeckDragging, getLastSaveTime } from "@/stores/deckStore";
+import { useDeckStore, getDeckDragging, getLastSaveTime } from "@/stores/deckStore";
 import { setStoreAdapter } from "@/stores/deckStore";
-import { mergeDeck } from "@/utils/deckDiff";
 import { EditorLayout } from "@/components/editor/EditorLayout";
 import { PresenterView } from "@/components/presenter/PresenterView";
 import { ViewOnlyPresentation } from "@/components/presenter/ViewOnlyPresentation";
@@ -171,28 +170,10 @@ export function App() {
 
   // Try element-level merge; fall back to conflict dialog if same element modified both sides
   const tryMerge = useCallback((remoteDeck: Deck) => {
-    const state = useDeckStore.getState();
-    const base = getLastSavedDeck();
-    const local = state.deck;
-
-    // No base snapshot or no local deck → full reload
-    if (!base || !local) {
-      useDeckStore.getState().loadDeck(remoteDeck);
-      return;
-    }
-
-    const result = mergeDeck(base, local, remoteDeck);
-    if (result.merged) {
-      // Always update base to disk state — even if merged result equals local,
-      // the disk changed and future merges need the correct base.
-      setLastSavedDeck(remoteDeck);
-      // Skip store update if merged result is identical to current (avoids cursor reset in text inputs)
-      if (JSON.stringify(result.merged) === JSON.stringify(local)) return;
+    const result = useDeckStore.getState().mergeExternalChange(remoteDeck);
+    if (result === "merged") {
       console.log("[deckode] External change merged");
-      useDeckStore.getState().replaceDeck(result.merged);
-    } else {
-      // Conflicts exist → show dialog
-      useDeckStore.getState().setSavePaused(true);
+    } else if (result === "conflict") {
       setExternalChange(true);
     }
   }, []);

@@ -7,6 +7,7 @@ import type { FileSystemAdapter } from "@/adapters/types";
 import { nextElementId, syncCounters } from "@/utils/id";
 import { assert } from "@/utils/assert";
 import { computeBounds } from "@/utils/bounds";
+import { mergeDeck } from "@/utils/deckDiff";
 import { setTabProject } from "@/utils/handleStore";
 
 // -- Session-persisted slide index helpers --
@@ -61,6 +62,7 @@ interface DeckState {
   closeProject: () => void;
   loadDeck: (deck: Deck) => void;
   replaceDeck: (deck: Deck) => void;
+  mergeExternalChange: (remoteDeck: Deck) => "reloaded" | "identical" | "merged" | "conflict";
   saveToDisk: () => Promise<void>;
   setCurrentSlide: (index: number) => void;
   setSelectedSlides: (ids: string[]) => void;
@@ -113,7 +115,6 @@ let isDragging = false;
 // Snapshot of the deck at last save/load — used for three-way merge
 let _lastSavedDeck: Deck | null = null;
 export function getLastSavedDeck(): Deck | null { return _lastSavedDeck; }
-export function setLastSavedDeck(deck: Deck): void { _lastSavedDeck = structuredClone(deck); }
 
 export function selectIsDirty(state: { versionId: number; savedVersionId: number }): boolean {
   return state.versionId !== state.savedVersionId;
@@ -282,6 +283,29 @@ export const useDeckStore = create<DeckState>()(
             state.versionId += 1;
           }),
 
+        mergeExternalChange: (remoteDeck) => {
+          const base = _lastSavedDeck;
+          const local = get().deck;
+
+          if (!base || !local) {
+            get().loadDeck(remoteDeck);
+            return "reloaded";
+          }
+
+          const result = mergeDeck(base, local, remoteDeck);
+          if (result.merged) {
+            // Always update base to disk state — even if merged === local
+            _lastSavedDeck = structuredClone(remoteDeck);
+            if (JSON.stringify(result.merged) === JSON.stringify(local)) {
+              return "identical";
+            }
+            get().replaceDeck(result.merged);
+            return "merged";
+          }
+          set((state) => { state.savePaused = true; });
+          return "conflict";
+        },
+
         saveToDisk: async () => {
           const { deck, currentProject } = get();
           if (!deck || !currentProject || !_adapter) return;
@@ -347,7 +371,6 @@ export const useDeckStore = create<DeckState>()(
           if (conflictDeck) {
             const local = get().deck;
             if (_lastSavedDeck && local) {
-              const { mergeDeck } = await import("@/utils/deckDiff");
               const result = mergeDeck(_lastSavedDeck, local, conflictDeck);
               // Update base to what's actually on disk now
               _lastSavedDeck = structuredClone(conflictDeck);

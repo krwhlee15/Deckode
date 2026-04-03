@@ -18,7 +18,10 @@ export async function createProject(name: string, config: NewProjectConfig): Pro
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name, ...config }),
   });
-  assert(res.ok, `Failed to create project: ${res.status}`);
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new Error(body?.error ?? `Failed to create project: ${res.status}`);
+  }
 }
 
 export async function deleteProject(name: string): Promise<void> {

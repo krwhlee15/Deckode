@@ -5,10 +5,22 @@ export const deckodeTools: DeckodeTool[] = [
   {
     name: "read_deck",
     description:
-      "Read the current deck state including all slides and elements. Use this to understand what exists before making changes.",
+      "Read a summary of the current deck (slide IDs, titles, element counts). Use read_slide for full details of a specific slide. Only call this if the deck state was NOT already provided in your system prompt.",
     parameters: {
       type: SchemaType.OBJECT,
       properties: {},
+    },
+  },
+  {
+    name: "read_slide",
+    description:
+      "Read the full details of a specific slide including all elements with their positions, sizes, and content. Use this when you need to inspect or modify a particular slide.",
+    parameters: {
+      type: SchemaType.OBJECT,
+      properties: {
+        slideId: { type: SchemaType.STRING, description: "The slide ID to read, e.g. 's1'" },
+      },
+      required: ["slideId"],
     },
   },
   {
@@ -150,14 +162,14 @@ export const deckodeTools: DeckodeTool[] = [
   },
 ];
 
-export const plannerTools: DeckodeTool[] = deckodeTools.filter((t) => t.name === "read_deck");
+export const plannerTools: DeckodeTool[] = deckodeTools.filter((t) => t.name === "read_deck" || t.name === "read_slide");
 
 export const generatorTools: DeckodeTool[] = deckodeTools; // all tools
 
 export const reviewerTools: DeckodeTool[] = deckodeTools.filter(
-  (t) => t.name === "read_deck" || t.name === "update_element" || t.name === "update_slide" || t.name === "delete_element",
+  (t) => t.name === "read_deck" || t.name === "read_slide" || t.name === "update_element" || t.name === "update_slide" || t.name === "delete_element",
 );
 
 export const writerTools: DeckodeTool[] = deckodeTools.filter(
-  (t) => t.name === "read_deck" || t.name === "update_slide",
+  (t) => t.name === "read_deck" || t.name === "read_slide" || t.name === "update_slide",
 );

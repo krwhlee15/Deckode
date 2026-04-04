@@ -47,10 +47,10 @@ export const AVAILABLE_MODELS = [
 export type AgentRole = "planner" | "generator" | "reviewer" | "writer";
 
 export const DEFAULT_AGENT_MODELS: Record<AgentRole, string> = {
-  planner: "gemini-2.0-flash",
+  planner: "gemini-2.5-flash",
   generator: "gemini-2.5-pro",
-  reviewer: "gemini-2.0-flash",
-  writer: "gemini-2.5-pro",
+  reviewer: "gemini-2.5-flash",
+  writer: "gemini-2.5-flash",
 };
 
 const MODELS_STORAGE_KEY = "deckode:agent-models";

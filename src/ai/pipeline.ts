@@ -41,13 +41,72 @@ export interface PipelineCallbacks {
 
 // ---------- Tool Execution ----------
 
+/** Fix literal \n sequences in text content and auto-add missing waypoints to arrows */
+function sanitizeToolArgs(obj: unknown): void {
+  if (!obj || typeof obj !== "object") return;
+  if (Array.isArray(obj)) {
+    for (const item of obj) sanitizeToolArgs(item);
+    return;
+  }
+  const rec = obj as Record<string, unknown>;
+  // Fix literal \n in string fields commonly containing text
+  for (const key of ["content", "notes"]) {
+    if (typeof rec[key] === "string") {
+      rec[key] = (rec[key] as string).replace(/\\n/g, "\n");
+    }
+  }
+  // Auto-add waypoints to arrows that are missing them
+  if (rec.shape === "arrow" && rec.style && rec.size) {
+    const style = rec.style as Record<string, unknown>;
+    const size = rec.size as { w: number; h: number };
+    if (!style.waypoints) {
+      // Horizontal arrow by default; vertical if h > w
+      if (size.h > size.w) {
+        style.waypoints = [{ x: 0, y: 0 }, { x: 0, y: size.h }];
+      } else {
+        style.waypoints = [{ x: 0, y: 0 }, { x: size.w, y: 0 }];
+      }
+    }
+  }
+  // Recurse into nested objects/arrays
+  for (const val of Object.values(rec)) {
+    if (val && typeof val === "object") sanitizeToolArgs(val);
+  }
+}
+
 function executeTool(name: string, args: Record<string, unknown>): string {
+  // Sanitize text content and fix missing arrow waypoints
+  sanitizeToolArgs(args);
+
   const store = useDeckStore.getState();
   const deck = store.deck;
 
   switch (name) {
     case "read_deck": {
-      return JSON.stringify(deck, null, 2);
+      if (!deck) return "No deck loaded.";
+      // Return summary only — use read_slide for details
+      const summary = {
+        title: deck.meta.title,
+        author: deck.meta.author,
+        slideCount: deck.slides.length,
+        slides: deck.slides.map((s) => ({
+          id: s.id,
+          elementCount: s.elements.length,
+          elementTypes: [...new Set(s.elements.map((e) => e.type))],
+          hasNotes: !!s.notes,
+          firstText: s.elements.find((e) => e.type === "text")
+            ? (s.elements.find((e) => e.type === "text") as { content: string }).content.slice(0, 60)
+            : null,
+        })),
+      };
+      return JSON.stringify(summary, null, 2);
+    }
+    case "read_slide": {
+      const slideId = args.slideId as string;
+      if (!deck) return "No deck loaded.";
+      const slide = deck.slides.find((s) => s.id === slideId);
+      if (!slide) return `Slide "${slideId}" not found.`;
+      return JSON.stringify(slide, null, 2);
     }
     case "create_deck": {
       const newDeck = args.deck as Deck;
@@ -114,6 +173,7 @@ async function callAgentWithTools(
   let currentHistory = [...history];
   let currentMessage = message;
   let iterations = 0;
+  let toolCallsMade = false;
   const maxIterations = 20;
 
   while (iterations < maxIterations) {
@@ -126,16 +186,36 @@ async function callAgentWithTools(
       message: currentMessage,
     });
 
+    onLog(`  [iter ${iterations}] text=${response.text.length}chars, tools=${response.functionCalls.length}`);
+
     if (response.functionCalls.length === 0) {
+      // If no tool calls have been made yet, nudge the model to use tools.
+      if (!toolCallsMade && iterations <= 2 && response.text) {
+        onLog("Model responded with text only, nudging to use tools...");
+        currentHistory = [
+          ...currentHistory,
+          { role: "user", parts: [{ text: currentMessage }] },
+          { role: "model", parts: [{ text: response.text }] },
+        ];
+        currentMessage = "Now execute the plan by calling the provided tools (add_slide, add_element, etc.). Do not just describe what you would do — actually call the tools.";
+        continue;
+      }
       return response.text;
     }
 
     // Execute each function call and build function response
+    toolCallsMade = true;
     const functionResponses: string[] = [];
     for (const fc of response.functionCalls) {
       onLog(`  → ${fc.name}(${JSON.stringify(fc.args).slice(0, 120)}...)`);
-      const result = executeTool(fc.name, fc.args);
-      functionResponses.push(`${fc.name} result: ${result}`);
+      try {
+        const result = executeTool(fc.name, fc.args);
+        functionResponses.push(`${fc.name} result: ${result}`);
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        onLog(`  ✗ ${fc.name} failed: ${errMsg}`);
+        functionResponses.push(`${fc.name} ERROR: ${errMsg}. Try a different approach.`);
+      }
     }
 
     // Add to history and continue

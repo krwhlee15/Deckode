@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useChatStore } from "@/stores/chatStore";
+import { useDeckStore } from "@/stores/deckStore";
 import { runPipeline, type PipelineCallbacks, type PlanResult } from "@/ai/pipeline";
 import { getApiKey, setApiKey, clearApiKey, getAgentModels, setAgentModel, AVAILABLE_MODELS, type AgentRole } from "@/ai/geminiClient";
 
@@ -10,8 +11,18 @@ export function AiChatPanel() {
   const currentStage = useChatStore((s) => s.currentStage);
   const pendingApproval = useChatStore((s) => s.pendingApproval);
   const logs = useChatStore((s) => s.logs);
+  const sessions = useChatStore((s) => s.sessions);
+  const currentSessionId = useChatStore((s) => s.currentSessionId);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const currentProject = useDeckStore((s) => s.currentProject);
+
+  // Load chat sessions for current project
+  useEffect(() => {
+    if (currentProject) {
+      useChatStore.getState().loadProject(currentProject);
+    }
+  }, [currentProject]);
 
   // API key state
   const [hasKey, setHasKey] = useState(() => !!getApiKey());
@@ -120,7 +131,7 @@ export function AiChatPanel() {
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-1.5 border-b border-zinc-800">
         <div className="flex items-center gap-2">
-          <span className="text-xs font-medium text-zinc-300">AI Chat</span>
+          <span className="text-xs font-medium text-zinc-300">AI</span>
           {currentStage && (
             <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-600/20 text-blue-400">
               {stageLabel(currentStage)}
@@ -128,6 +139,13 @@ export function AiChatPanel() {
           )}
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => useChatStore.getState().newSession()}
+            className="text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors"
+            title="New session"
+          >
+            +
+          </button>
           <button
             onClick={() => setShowSettings((v) => !v)}
             className={`text-[10px] transition-colors ${showSettings ? "text-blue-400" : "text-zinc-500 hover:text-zinc-300"}`}
@@ -142,6 +160,25 @@ export function AiChatPanel() {
           </button>
         </div>
       </div>
+
+      {/* Session tabs */}
+      {sessions.length > 1 && (
+        <div className="flex items-center gap-1 px-2 py-1 border-b border-zinc-800 overflow-x-auto">
+          {sessions.map((s) => (
+            <button
+              key={s.id}
+              onClick={() => useChatStore.getState().switchSession(s.id)}
+              className={`text-[9px] px-2 py-0.5 rounded whitespace-nowrap transition-colors ${
+                s.id === currentSessionId
+                  ? "bg-blue-600/20 text-blue-400"
+                  : "text-zinc-500 hover:text-zinc-300"
+              }`}
+            >
+              {s.messages.length > 0 ? s.messages[0]!.content.slice(0, 20) + (s.messages[0]!.content.length > 20 ? "..." : "") : "New"}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Settings panel */}
       {showSettings && (
@@ -194,7 +231,7 @@ export function AiChatPanel() {
                   : "text-zinc-300 bg-zinc-900 rounded-lg px-3 py-2 mr-8"
             }`}
           >
-            <div className="whitespace-pre-wrap">{msg.content}</div>
+            <div className="whitespace-pre-wrap">{msg.content.replace(/\\n/g, "\n")}</div>
             {msg.stage && (
               <div className="text-[10px] text-zinc-500 mt-1">
                 Stage: {stageLabel(msg.stage)}
@@ -247,12 +284,19 @@ export function AiChatPanel() {
           <textarea
             ref={inputRef}
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={(e) => {
+              setInput(e.target.value);
+              // Auto-resize
+              const el = e.target;
+              el.style.height = "auto";
+              el.style.height = Math.min(el.scrollHeight, 120) + "px";
+            }}
             onKeyDown={handleKeyDown}
             placeholder="Ask AI..."
             disabled={isProcessing}
             rows={1}
             className="flex-1 bg-zinc-800 border border-zinc-700 rounded px-3 py-1.5 text-xs text-zinc-200 resize-none focus:outline-none focus:border-blue-500 disabled:opacity-50"
+            style={{ minHeight: 28, maxHeight: 120 }}
           />
           <button
             onClick={handleSend}

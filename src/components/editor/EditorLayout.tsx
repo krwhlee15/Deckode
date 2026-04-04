@@ -48,7 +48,7 @@ function performUndoRedo(direction: "undo" | "redo") {
 }
 
 type BottomPanel = "code" | null;
-type RightPanel = "properties" | "theme" | "ai";
+type RightPanel = "properties" | "theme";
 
 export function EditorLayout() {
   useTikzAutoRender();
@@ -57,6 +57,8 @@ export function EditorLayout() {
   const isReadOnly = adapter.mode === "readonly";
   const [bottomPanel, setBottomPanel] = useState<BottomPanel>(null);
   const [rightPanel, setRightPanel] = useState<RightPanel>("properties");
+  const [showAi, setShowAi] = useState(false);
+  const [aiWidth, setAiWidth] = useState(300);
   const [presenting, setPresenting] = useState(false);
   const [showDiff, setShowDiff] = useState(false);
   const [pdfMenuOpen, setPdfMenuOpen] = useState(false);
@@ -585,9 +587,9 @@ export function EditorLayout() {
           JSON
         </button>
         <button
-          onClick={() => setRightPanel(rightPanel === "ai" ? "properties" : "ai")}
+          onClick={() => setShowAi((v) => !v)}
           className={`text-xs px-2 py-1 rounded transition-colors ${
-            rightPanel === "ai"
+            showAi
               ? "bg-purple-600 text-white"
               : "bg-zinc-800 text-zinc-400 hover:text-zinc-200"
           }`}
@@ -663,11 +665,7 @@ export function EditorLayout() {
           style={{ width: rightWidth }}
           className="flex flex-col shrink-0 border-l border-zinc-800"
         >
-          {rightPanel === "ai" ? (
-            <div className="flex-1 overflow-hidden">
-              <AiChatPanel />
-            </div>
-          ) : rightPanel === "theme" ? (
+          {rightPanel === "theme" ? (
             <div className="flex-1 overflow-y-auto">
               <ThemePanel />
             </div>
@@ -688,6 +686,32 @@ export function EditorLayout() {
             </>
           )}
         </div>
+
+        {/* AI panel — independent, rightmost */}
+        {showAi && (
+          <>
+            <div
+              className="w-1 shrink-0 cursor-col-resize hover:bg-purple-500/40 active:bg-purple-500/40 transition-colors"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                const startX = e.clientX;
+                const startW = aiWidth;
+                const onMove = (ev: MouseEvent) => setAiWidth(Math.max(200, Math.min(500, startW - (ev.clientX - startX))));
+                const onUp = () => { window.removeEventListener("mousemove", onMove); window.removeEventListener("mouseup", onUp); document.body.style.cursor = ""; document.body.style.userSelect = ""; };
+                document.body.style.cursor = "col-resize";
+                document.body.style.userSelect = "none";
+                window.addEventListener("mousemove", onMove);
+                window.addEventListener("mouseup", onUp);
+              }}
+            />
+            <div
+              style={{ width: aiWidth }}
+              className="flex flex-col shrink-0 border-l border-zinc-800 overflow-hidden"
+            >
+              <AiChatPanel />
+            </div>
+          </>
+        )}
       </div>
       {exportProgress && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-zinc-900 border border-zinc-700 rounded-lg shadow-2xl px-5 py-3 flex items-center gap-3 min-w-[280px]">

@@ -772,16 +772,40 @@ Steps:
       // Programmatic overflow fix before validation
       applyOverflowFix(newSlide);
 
+      // Programmatic overlap resolution
+      const overlapFixed = resolveOverlaps(newSlide);
+      if (overlapFixed > 0) {
+        console.log(`  [layout] Auto-resolved ${overlapFixed} overlap(s) programmatically`);
+      }
+
       const slideIssues = validateDeck([newSlide]);
       const criticals = slideIssues.filter((iss) => iss.level === "CRITICAL");
-      if (criticals.length === 0) {
+      const overlapWarnings = slideIssues.filter(
+        (iss) => iss.level === "WARNING" && iss.message.includes("overlap"),
+      );
+      if (criticals.length === 0 && overlapWarnings.length === 0) {
         console.log(`  ✓ Slide ${slidePlan.id} passed validation`);
         break;
       }
-      console.log(`  ✗ ${criticals.length} critical issue(s) — attempt ${attempt}/${MAX_ATTEMPTS}`);
-      for (const c of criticals) console.log(`    [${c.ref}] ${c.message}`);
-      // Don't retry with add_slide again (slide already exists) — accept remaining issues
-      break;
+      const issueList = [...criticals, ...overlapWarnings];
+      console.log(`  ✗ ${criticals.length} critical, ${overlapWarnings.length} overlap warnings — attempt ${attempt}/${MAX_ATTEMPTS}`);
+      for (const c of issueList) console.log(`    [${c.ref}] ${c.message}`);
+
+      if (attempt < MAX_ATTEMPTS && issueList.length > 0) {
+        const fixLines = issueList.map((iss) => `- ${iss.level} [${iss.ref}] ${iss.message}`).join("\n");
+        const reviewMsg = `Fix layout issues in slide ${slidePlan.id} only. Call update_element with the exact suggested positions:\n${fixLines}`;
+        console.log(`  [reviewer] Sending ${issueList.length} issue(s) to agent for correction...`);
+        await callGeminiWithTools(buildGeneratorPrompt(), reviewMsg);
+        // Re-apply fixes after agent corrects
+        const fixedSlide = deck.slides.find((s) => s.id === slidePlan.id);
+        if (fixedSlide) {
+          applyOverflowFix(fixedSlide);
+          resolveOverlaps(fixedSlide);
+        }
+      } else {
+        // Last attempt — accept remaining issues
+        break;
+      }
     }
   }
 
@@ -836,6 +860,89 @@ function applyOverflowFix(slide) {
     if (x < 0) { el.size.w = Math.max(10, el.size.w + x); el.position.x = 0; }
     if (y < 0) { el.size.h = Math.max(10, el.size.h + y); el.position.y = 0; }
   }
+}
+
+/**
+ * Programmatically resolve element overlaps by nudging the smaller element
+ * to the nearest valid non-overlapping position.
+ * Returns the number of elements moved.
+ */
+function resolveOverlaps(slide) {
+  const CANVAS_W = 960, CANVAS_H = 540, GAP = 10;
+  const VISUAL = ["shape"];
+  const CONTENT = ["text", "table", "code"];
+
+  // Mutable position map for cascade-safe iteration
+  const pos = new Map(
+    (slide.elements ?? []).filter((e) => e.position).map((e) => [e.id, { ...e.position }])
+  );
+  const siz = new Map(
+    (slide.elements ?? []).filter((e) => e.size).map((e) => [e.id, { ...e.size }])
+  );
+  const measurable = (slide.elements ?? []).filter(
+    (e) => e.position && e.size && e.size.w > 5 && e.size.h > 5
+  );
+
+  let totalFixed = 0;
+
+  for (let iter = 0; iter < 5; iter++) {
+    let fixedThisRound = 0;
+
+    for (let a = 0; a < measurable.length; a++) {
+      for (let b = a + 1; b < measurable.length; b++) {
+        const ea = measurable[a], eb = measurable[b];
+        if (ea.groupId && ea.groupId === eb.groupId) continue;
+        if (
+          (VISUAL.includes(ea.type) && CONTENT.includes(eb.type)) ||
+          (CONTENT.includes(ea.type) && VISUAL.includes(eb.type))
+        ) continue;
+
+        const pA = pos.get(ea.id), pB = pos.get(eb.id);
+        const sA = siz.get(ea.id), sB = siz.get(eb.id);
+        if (!pA || !pB || !sA || !sB) continue;
+
+        const ow = Math.min(pA.x + sA.w, pB.x + sB.w) - Math.max(pA.x, pB.x);
+        const oh = Math.min(pA.y + sA.h, pB.y + sB.h) - Math.max(pA.y, pB.y);
+        if (ow <= 20 || oh <= 20) continue;
+
+        const areaA = sA.w * sA.h, areaB = sB.w * sB.h;
+        const pct = (ow * oh) / Math.min(areaA, areaB);
+        const isLabelOnBox = pct > 0.9 && Math.max(areaA, areaB) / Math.min(areaA, areaB) > 3;
+        const isAnnotation = Math.max(areaA, areaB) / Math.min(areaA, areaB) > 4;
+        if (isLabelOnBox || isAnnotation || pct <= 0.15) continue;
+
+        // Move the smaller element
+        const moveB = areaA >= areaB;
+        const [largerP, largerS, smallerId, smallerP, smallerS] = moveB
+          ? [pA, sA, eb.id, pB, sB]
+          : [pB, sB, ea.id, pA, sA];
+
+        const candidates = [
+          { x: largerP.x + largerS.w + GAP, y: smallerP.y },
+          { x: smallerP.x, y: largerP.y + largerS.h + GAP },
+          { x: largerP.x - smallerS.w - GAP, y: smallerP.y },
+          { x: smallerP.x, y: largerP.y - smallerS.h - GAP },
+        ].filter((p) => p.x >= 0 && p.y >= 0 && p.x + smallerS.w <= CANVAS_W && p.y + smallerS.h <= CANVAS_H);
+
+        if (candidates.length === 0) continue;
+
+        const best = candidates.reduce((a, c) =>
+          Math.hypot(a.x - smallerP.x, a.y - smallerP.y) < Math.hypot(c.x - smallerP.x, c.y - smallerP.y) ? a : c
+        );
+
+        pos.set(smallerId, best);
+        // Mutate the element in-place (test script uses mutable objects)
+        const el = slide.elements.find((e) => e.id === smallerId);
+        if (el) el.position = best;
+        fixedThisRound++;
+      }
+    }
+
+    totalFixed += fixedThisRound;
+    if (fixedThisRound === 0) break;
+  }
+
+  return totalFixed;
 }
 
 async function runAnimationFix(systemPrompt) {
@@ -953,17 +1060,22 @@ function validateDeck(slides) {
           // Skip small element on much larger (ratio > 4x) — label-in-box or annotation
           const isAnnotation = Math.max(areaA, areaB) / Math.min(areaA, areaB) > 4;
           if (!isLabelOnBox && !isShapeOnContent && !isAnnotation) {
+            const [larger, smaller] = areaA >= areaB ? [ea, eb] : [eb, ea];
+            const suggestX = Math.min(960 - smaller.size.w, larger.position.x + larger.size.w + 10);
+            const coordsA = `${ea.position.x},${ea.position.y} ${ea.size.w}×${ea.size.h}`;
+            const coordsB = `${eb.position.x},${eb.position.y} ${eb.size.w}×${eb.size.h}`;
+            const suggestion = `move "${smaller.id}" to x:${suggestX} y:${smaller.position.y}`;
             if (pct > 0.5) {
               issues.push({
                 level: "CRITICAL",
                 ref: `${slide.id}/${ea.id}`,
-                message: `"${ea.id}" and "${eb.id}" overlap by ${Math.round(pct*100)}% — move one to a different position`,
+                message: `"${ea.id}"(${coordsA}) and "${eb.id}"(${coordsB}) overlap ${Math.round(pct*100)}% — ${suggestion}`,
               });
             } else if (pct > 0.15) {
               issues.push({
                 level: "WARNING",
                 ref: `${slide.id}/${ea.id}`,
-                message: `"${ea.id}" and "${eb.id}" overlap by ${Math.round(pct*100)}% (${ow}x${oh}px)`,
+                message: `"${ea.id}"(${coordsA}) and "${eb.id}"(${coordsB}) overlap ${Math.round(pct*100)}% — ${suggestion}`,
               });
             }
           }

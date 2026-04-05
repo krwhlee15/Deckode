@@ -4,7 +4,7 @@ import { callGemini, buildFunctionDeclarations, type GeminiModel, type DeckodeTo
 import { buildPlannerPrompt, buildGeneratorPrompt, buildContentAgentPrompt, buildVisualAgentPrompt, buildReviewerPrompt, buildWriterPrompt } from "./prompts";
 import { generatorTools, reviewerTools, writerTools } from "./tools";
 import { readGuide } from "./guides";
-import { validateDeck, buildFixInstructions } from "./validation";
+import { validateDeck, buildFixInstructions, resolveOverlaps } from "./validation";
 import type { Content } from "@google/generative-ai";
 
 // ---------- Types ----------
@@ -420,17 +420,32 @@ Steps:
             }
           }
 
+          // Programmatic overlap resolution — nudge smaller element away from larger
+          const slideAfterClamp = useDeckStore.getState().deck?.slides.find((s) => s.id === slidePlan.id);
+          if (slideAfterClamp) {
+            const overlapFixed = resolveOverlaps(slidePlan.id, slideAfterClamp, (elementId, patch) => {
+              useDeckStore.getState().updateElement(slidePlan.id, elementId, patch);
+            });
+            if (overlapFixed > 0) {
+              cb.onLog(`  [layout] Auto-resolved ${overlapFixed} overlap(s) programmatically`);
+            }
+          }
+
           const refreshedDeck = useDeckStore.getState().deck;
           const refreshedSlide = refreshedDeck?.slides.find((s) => s.id === slidePlan.id);
           const slideResult = refreshedSlide
             ? validateDeck({ ...updatedDeck, slides: [refreshedSlide] })
             : validateDeck({ ...updatedDeck, slides: [newSlide] });
           const criticals = slideResult.issues.filter((iss) => iss.severity === "error");
-          if (criticals.length === 0) {
+          const overlapWarnings = slideResult.issues.filter(
+            (iss) => iss.severity === "warning" && iss.message.includes("overlap"),
+          );
+          if (criticals.length === 0 && overlapWarnings.length === 0) {
             cb.onLog(`  ✓ Slide ${slidePlan.id} passed validation`);
             break;
           }
-          cb.onLog(`  ✗ Slide ${slidePlan.id} has ${criticals.length} critical issue(s) — attempt ${attempt}/${maxAttempts}`);
+          const issueCount = criticals.length + overlapWarnings.length;
+          cb.onLog(`  ✗ Slide ${slidePlan.id} has ${issueCount} issue(s) (${criticals.length} critical, ${overlapWarnings.length} overlap warnings) — attempt ${attempt}/${maxAttempts}`);
           if (attempt < maxAttempts) {
             const fixInstructions = buildFixInstructions(slideResult);
             const fixPrompt = buildReviewerPrompt(updatedDeck);

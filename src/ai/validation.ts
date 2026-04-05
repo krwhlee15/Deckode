@@ -1,4 +1,4 @@
-import type { Deck } from "@/types/deck";
+import type { Deck, Slide } from "@/types/deck";
 
 export interface ValidationIssue {
   severity: "error" | "warning";
@@ -79,12 +79,21 @@ export function validateDeck(deck: Deck): ValidationResult {
           // Skip small element on much larger (ratio > 4x) — label-in-box or annotation
           const isAnnotation = Math.max(areaA, areaB) / Math.min(areaA, areaB) > 4;
           if (!isLabelOnBox && !isShapeOnContent && !isAnnotation) {
+            // Compute a suggested target position (right of the larger element)
+            const areaA = ea.size.w * ea.size.h;
+            const areaB = eb.size.w * eb.size.h;
+            const [larger, smaller] = areaA >= areaB ? [ea, eb] : [eb, ea];
+            const suggestX = Math.min(960 - smaller.size.w, larger.position.x + larger.size.w + 10);
+            const suggestY = smaller.position.y;
+            const coordsA = `${ax1},${ay1} ${ea.size.w}×${ea.size.h}`;
+            const coordsB = `${bx1},${by1} ${eb.size.w}×${eb.size.h}`;
+            const suggestion = `move "${smaller.id}" to x:${suggestX} y:${suggestY} (right of "${larger.id}")`;
             if (overlapPct > 0.5) {
               issues.push({
                 severity: "error",
                 slideId: slide.id,
                 elementId: ea.id,
-                message: `Elements "${ea.id}" and "${eb.id}" overlap by ${Math.round(overlapPct * 100)}% — move one to a different position`,
+                message: `Elements "${ea.id}"(${coordsA}) and "${eb.id}"(${coordsB}) overlap ${Math.round(overlapPct * 100)}% — ${suggestion}`,
                 autoFixable: false,
               });
             } else if (overlapPct > 0.15) {
@@ -92,7 +101,7 @@ export function validateDeck(deck: Deck): ValidationResult {
                 severity: "warning",
                 slideId: slide.id,
                 elementId: ea.id,
-                message: `Elements "${ea.id}" and "${eb.id}" overlap by ${Math.round(overlapPct * 100)}% (${overlapW}×${overlapH}px)`,
+                message: `Elements "${ea.id}"(${coordsA}) and "${eb.id}"(${coordsB}) overlap ${Math.round(overlapPct * 100)}% — ${suggestion}`,
                 autoFixable: false,
               });
             }
@@ -360,11 +369,131 @@ export function buildFixInstructions(result: ValidationResult): string {
         lines.push(`- FIX ${loc} ${i.message}`);
       }
     } else if (i.severity === "error") {
-      // Critical non-auto-fixable: report so reviewer is aware
       lines.push(`- CRITICAL ${loc} ${i.message}`);
+    } else if (i.severity === "warning" && i.message.includes("overlap")) {
+      // Overlap warnings: include with specific fix instructions for the agent
+      lines.push(`- FIX ${loc} ${i.message} — call update_element with the suggested position`);
     }
   }
 
   if (lines.length === 0) return "";
   return `Issues found:\n${lines.join("\n")}`;
+}
+
+/**
+ * Programmatically resolve element overlaps by nudging the smaller element
+ * to the nearest valid non-overlapping position.
+ * Applies the same exemption logic as validateDeck (shape-on-content, annotation, label-on-box).
+ * Returns the number of elements moved.
+ */
+export function resolveOverlaps(
+  _slideId: string,
+  slide: Slide,
+  updateFn: (elementId: string, patch: { position: { x: number; y: number } }) => void,
+): number {
+  const CANVAS_W = 960;
+  const CANVAS_H = 540;
+  const GAP = 10;
+
+  // Mutable position tracking (separate from store so cascade moves work)
+  const pos = new Map<string, { x: number; y: number }>(
+    slide.elements
+      .filter((e) => e.position)
+      .map((e) => [e.id, { x: e.position.x, y: e.position.y }]),
+  );
+  const siz = new Map<string, { w: number; h: number }>(
+    slide.elements
+      .filter((e) => e.size)
+      .map((e) => [e.id, { w: e.size.w, h: e.size.h }]),
+  );
+
+  const measurable = slide.elements.filter(
+    (e) => e.position && e.size && e.size.w > 5 && e.size.h > 5,
+  );
+
+  const VISUAL = ["shape"];
+  const CONTENT = ["text", "table", "code"];
+
+  let totalFixed = 0;
+
+  for (let iter = 0; iter < 5; iter++) {
+    let fixedThisRound = 0;
+
+    for (let a = 0; a < measurable.length; a++) {
+      for (let b = a + 1; b < measurable.length; b++) {
+        const ea = measurable[a]!;
+        const eb = measurable[b]!;
+
+        // Same exemptions as validateDeck
+        const gaGroup = (ea as { groupId?: string }).groupId;
+        const gbGroup = (eb as { groupId?: string }).groupId;
+        if (gaGroup && gaGroup === gbGroup) continue;
+
+        const eaType = (ea as { type?: string }).type;
+        const ebType = (eb as { type?: string }).type;
+        if (
+          (VISUAL.includes(eaType ?? "") && CONTENT.includes(ebType ?? "")) ||
+          (CONTENT.includes(eaType ?? "") && VISUAL.includes(ebType ?? ""))
+        ) continue;
+
+        const pA = pos.get(ea.id);
+        const pB = pos.get(eb.id);
+        const sA = siz.get(ea.id);
+        const sB = siz.get(eb.id);
+        if (!pA || !pB || !sA || !sB) continue;
+
+        const ow = Math.min(pA.x + sA.w, pB.x + sB.w) - Math.max(pA.x, pB.x);
+        const oh = Math.min(pA.y + sA.h, pB.y + sB.h) - Math.max(pA.y, pB.y);
+        if (ow <= 20 || oh <= 20) continue;
+
+        const areaA = sA.w * sA.h;
+        const areaB = sB.w * sB.h;
+        const pct = (ow * oh) / Math.min(areaA, areaB);
+
+        const isLabelOnBox = pct > 0.9 && Math.max(areaA, areaB) / Math.min(areaA, areaB) > 3;
+        const isAnnotation = Math.max(areaA, areaB) / Math.min(areaA, areaB) > 4;
+        if (isLabelOnBox || isAnnotation) continue;
+        if (pct <= 0.15) continue;
+
+        // Move the smaller element
+        const moveB = areaA >= areaB;
+        const largerP = moveB ? pA : pB;
+        const largerS = moveB ? sA : sB;
+        const smallerId = moveB ? eb.id : ea.id;
+        const smallerP = moveB ? pB : pA;
+        const smallerS = moveB ? sB : sA;
+
+        const candidates = [
+          { x: largerP.x + largerS.w + GAP, y: smallerP.y },   // right
+          { x: smallerP.x, y: largerP.y + largerS.h + GAP },   // below
+          { x: largerP.x - smallerS.w - GAP, y: smallerP.y },  // left
+          { x: smallerP.x, y: largerP.y - smallerS.h - GAP },  // above
+        ];
+
+        const valid = candidates.filter(
+          (p) =>
+            p.x >= 0 &&
+            p.y >= 0 &&
+            p.x + smallerS.w <= CANVAS_W &&
+            p.y + smallerS.h <= CANVAS_H,
+        );
+        if (valid.length === 0) continue;
+
+        const best = valid.reduce((a, c) =>
+          Math.hypot(a.x - smallerP.x, a.y - smallerP.y) <
+          Math.hypot(c.x - smallerP.x, c.y - smallerP.y)
+            ? a : c,
+        );
+
+        pos.set(smallerId, best);
+        updateFn(smallerId, { position: best });
+        fixedThisRound++;
+      }
+    }
+
+    totalFixed += fixedThisRound;
+    if (fixedThisRound === 0) break;
+  }
+
+  return totalFixed;
 }

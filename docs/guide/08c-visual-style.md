@@ -1,40 +1,60 @@
 # Visual Style Guide
 
-This guide defines the default visual design system for the Generator agent. User style preferences (theme, animations, notes tone) override these defaults — see [Style Preferences](./08b-style-preferences.md).
+This guide defines the default visual design system for all agents. User style preferences (theme, animations, notes tone) override these defaults — see [Style Preferences](./08b-style-preferences.md). For layout templates and detailed palette, see [Layout Templates](./08d-layout-templates.md).
 
-## Color Palette (Professional Academic Style)
+## Color Palette — "Analytical Insight"
 
-- Background: `#ffffff` (white)
-- Primary text: `#1e293b` (dark slate)
-- Secondary text: `#475569` (medium slate)
-- Muted text: `#94a3b8` (light gray, for labels and metadata)
-- Primary accent: `#2c5282` (blue — titles, primary elements)
-- Secondary accent: `#5b4a8a` (purple — technical details)
-- Tertiary accent: `#b45309` (orange — highlights, secondary topics)
-- Success: `#3d7a5f` (green — completed items, positive states)
-- Error: `#dc2626` (red — problems, warnings)
-- Borders/arrows: `#9ca3af` (gray)
-- Light fills: Use accent colors at 4-8% opacity for container backgrounds (e.g., `rgba(44,82,130,0.06)`)
+| Role | Color | Usage |
+|------|-------|-------|
+| Primary | `#1A2B48` (Deep Navy) | Slide titles, headers, emphasis |
+| Data | `#5B9BD5` (Medium Blue) | Chart accents, metric values, highlights |
+| Data Light | `#BDD7EE` (Light Sky Blue) | Secondary data, card borders |
+| Structure | `#E7E6E6` (Soft Gray) | Divider lines, card fills, thin rules |
+| Insight BG | `#F2F2F2` (Light Warm Gray) | Key Insight box background |
+| Accent | `#A68966` (Muted Gold) | Section numbers, tags, "KEY INSIGHT" label, title rules |
+| Body | `#333333` (Charcoal) | Body text, descriptions |
+| Secondary | `#8899AA` | Subtitles, metadata |
+| Tertiary | `#AABBCC` | Period labels, captions, footer text |
+| Background | `#ffffff` | ALL slides — always white |
+
+**IMPORTANT**: Use ONLY these colors. Do not invent hex values or use colors from other palettes.
 
 ## Typography
 
 - Font family: Inter, system-ui, sans-serif
-- Slide title: fontSize 36-42, color `#2c5282`, bold (`**title**`)
-- Subtitle/section: fontSize 20-22, bold
-- Body text: fontSize 14-18, color `#475569`, lineHeight 1.5
-- Labels in boxes: fontSize 12-15, center-aligned
-- Small metadata: fontSize 9-11, color `#94a3b8`
-- Math/equations: fontSize 20-24 for display math (`$$...$$`), at least 16 for inline math. Equations scale with base fontSize — use larger sizes so formulas are readable.
+- **Slide title** (content slides): fontSize 18, color `#1A2B48`, bold (`**title**`)
+- **Title slide title**: fontSize 36, color `#1A2B48`, bold
+- Subtitle/section: fontSize 14, color `#8899AA`
+- Body text: fontSize 12-14, color `#333333`, lineHeight 1.5
+- Labels in boxes: fontSize 12-14, color `#5B9BD5`, center-aligned
+- Small metadata: fontSize 9-10, color `#AABBCC`
+- Math/equations: fontSize 20-24 for display math (`$$...$$`), at least 16 for inline math.
+
+### MANDATORY Typography Rules
+1. **Every content slide MUST have a title** as the first text element — fontSize 18, color `#1A2B48`, bold, positioned at (x:40, y:20)
+2. **Title slides** use fontSize 36 for the main title
+3. **Font sizes must be consistent** across all slides: title=18, body=12-14, subtitle=14, metadata=9-10
+4. **Never skip the title** — even diagram-heavy or image-heavy slides need a title
 
 ## Layout Rules
 
-- Top margin: y >= 25 for title area
+- Top margin: y >= 18 for title area
 - Side margins: x >= 40, content should not exceed x+w > 920
 - Bottom margin: y+h < 510 (leave room for page numbers)
-- Title positioned at top: y: 25-40
-- Content starts below title: y: 80-100
-- Spacing between sections: 40-60px
+- Title positioned at top: y: 18-30
+- Content starts below title: y: 55-80
+- Spacing between sections: 30-50px
 - Padding inside containers: 15-20px
+
+## Design Principles
+
+1. **White backgrounds only** — never use dark or colored slide backgrounds
+2. **No filled bars or header blocks** — no colored rectangles behind titles
+3. **No decorative shapes** — no ellipses, circles, or ornamental fills
+4. **Lines to separate** — use 1px `#E7E6E6` rectangles as dividers
+5. **Minimal fills** — containers use `#E7E6E6` (cards) or `#F2F2F2` (insight boxes only)
+6. **Stroke-only cards** — use `stroke: "#E7E6E6"`, `strokeWidth: 1`
+7. **No multi-line bold** — `**bold text**` must NOT contain `\n`
 
 ## Diagrams — Prefer Native Elements for Flow/Pipeline Diagrams
 
@@ -43,12 +63,12 @@ Use TikZ only for complex technical diagrams (neural nets, math graphs, circuits
 
 **Container boxes:**
 - type: `"shape"`, shape: `"rectangle"`
-- style: `{ fill: "rgba(44,82,130,0.06)", stroke: "#2c5282", strokeWidth: 2, borderRadius: 8 }`
-- Size: 150-360px wide, 50-80px tall
+- style: `{ fill: "#E7E6E6", stroke: "#E7E6E6", strokeWidth: 1, borderRadius: 6 }`
+- Size: 120-300px wide, 40-60px tall
 
 **Arrow connectors:**
 - type: `"shape"`, shape: `"arrow"`
-- style: `{ stroke: "#9ca3af", strokeWidth: 2 }`
+- style: `{ stroke: "#E7E6E6", strokeWidth: 2 }`
 - CRITICAL positioning: arrow `position.x` = source box right edge, `position.y` = source box vertical center
 - Size: `{ w: gap between boxes, h: 1 }` for horizontal arrows
 - Waypoints are RELATIVE to the element position. For a horizontal arrow: `[{x:0,y:0},{x:W,y:0}]`
@@ -57,16 +77,12 @@ Use TikZ only for complex technical diagrams (neural nets, math graphs, circuits
 
 **Text labels inside boxes:**
 - Position and size matching the parent box
-- style: `{ fontSize: 14, color: "#2c5282", textAlign: "center", verticalAlign: "middle" }`
+- style: `{ fontSize: 13, color: "#5B9BD5", textAlign: "center", verticalAlign: "middle" }`
 
 **CRITICAL: Always group related elements:**
 - Box + its label text must share the same `groupId`
 - Arrow + its label must share the same `groupId`
 - Convention: `groupId = "group-descriptive-name"`
-
-**Status badges (small rectangles):**
-- Size: ~50x16px
-- style: `{ fill: "#3d7a5f", borderRadius: 3 }` with white text at fontSize 9
 
 ## Animations
 
@@ -83,27 +99,14 @@ Use TikZ only for complex technical diagrams (neural nets, math graphs, circuits
 
 Use TikZ elements for neural network architectures, mathematical diagrams, and other complex technical illustrations:
 - Content: just the `tikzpicture` environment, no preamble
-- Example neural network:
-  ```
-  \begin{tikzpicture}[node distance=1.5cm]
-  \foreach \i in {1,...,3} \node[circle,draw,fill=blue!20] (i\i) at (0,-\i) {};
-  \foreach \i in {1,...,4} \node[circle,draw,fill=orange!20] (h\i) at (2,-\i+0.5) {};
-  \foreach \i in {1,...,2} \node[circle,draw,fill=green!20] (o\i) at (4,-\i-0.5) {};
-  \foreach \i in {1,...,3} \foreach \j in {1,...,4} \draw[->] (i\i) -- (h\j);
-  \foreach \i in {1,...,4} \foreach \j in {1,...,2} \draw[->] (h\i) -- (o\j);
-  \node[above] at (0,0) {Input};
-  \node[above] at (2,0) {Hidden};
-  \node[above] at (4,0) {Output};
-  \end{tikzpicture}
-  ```
 - Set `style: { backgroundColor: "#ffffff" }` to match slide background
 - Use for: neural nets, attention mechanisms, mathematical graphs, signal flow diagrams
 
 ## Tables
 
-- `headerBackground`: light accent color (e.g., `"rgba(61,122,95,0.08)"`)
-- `headerColor`: darker accent (e.g., `"#2d5a42"`)
-- `borderColor`: `"#d1d5db"`
-- `fontSize`: 10-13
+- `headerBackground`: `"#E7E6E6"`
+- `headerColor`: `"#1A2B48"`
+- `borderColor`: `"#E7E6E6"`
+- `fontSize`: 10-12
 - `striped`: true
 - `borderRadius`: 6

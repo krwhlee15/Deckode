@@ -3,12 +3,19 @@ import type { PlanResult, StylePreferences } from "@/ai/pipeline";
 
 export type MessageRole = "user" | "assistant" | "system";
 
+export interface MessageContextRefs {
+  slide?: { slideId: string; slideIndex: number; title: string };
+  elements?: Array<{ elementId: string; type: string; label: string }>;
+  projects?: string[];
+}
+
 export interface ChatMessage {
   id: string;
   role: MessageRole;
   content: string;
   timestamp: number;
   stage?: string;
+  contextRefs?: MessageContextRefs;
 }
 
 export interface PendingApproval {
@@ -37,7 +44,7 @@ interface ChatState {
   currentSessionId: string;
   sessions: ChatSession[];
 
-  addMessage: (role: MessageRole, content: string, stage?: string) => void;
+  addMessage: (role: MessageRole, content: string, stage?: string, contextRefs?: MessageContextRefs) => void;
   setProcessing: (processing: boolean) => void;
   setCurrentStage: (stage: string | null) => void;
   setPendingApproval: (approval: PendingApproval | null) => void;
@@ -99,7 +106,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
   currentSessionId: "",
   sessions: [],
 
-  addMessage: (role, content, stage) => {
+  addMessage: (role, content, stage, contextRefs) => {
     set((state) => {
       const newMessages = [
         ...state.messages,
@@ -109,6 +116,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
           content,
           timestamp: Date.now(),
           stage,
+          ...(contextRefs ? { contextRefs } : {}),
         },
       ];
       return { messages: newMessages };

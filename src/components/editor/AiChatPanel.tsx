@@ -1,11 +1,23 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { useChatStore } from "@/stores/chatStore";
+import { useChatStore, type MessageContextRefs } from "@/stores/chatStore";
 import { useDeckStore } from "@/stores/deckStore";
-import { runPipeline, type PipelineCallbacks, type PlanResult, type StylePreferences } from "@/ai/pipeline";
+import { useContextBarStore } from "@/stores/contextBarStore";
+import { useProjectRefStore } from "@/stores/projectRefStore";
+import { runPipeline, type PipelineCallbacks, type PlanResult, type StylePreferences, type ContextBarSnapshot } from "@/ai/pipeline";
 import { getApiKey, setApiKey, clearApiKey, getAgentModels, setAgentModel, AVAILABLE_MODELS, type AgentRole } from "@/ai/geminiClient";
+import { ContextBar } from "./ContextBar";
+import { AtMentionDropdown } from "./AtMentionDropdown";
+
+interface LastSendParams {
+  text: string;
+  context: ContextBarSnapshot | undefined;
+  contextRefs: MessageContextRefs | undefined;
+}
 
 export function AiChatPanel() {
   const [input, setInput] = useState("");
+  const [cursorPos, setCursorPos] = useState(0);
+  const [mentionActive, setMentionActive] = useState(false);
   const messages = useChatStore((s) => s.messages);
   const isProcessing = useChatStore((s) => s.isProcessing);
   const currentStage = useChatStore((s) => s.currentStage);
@@ -16,6 +28,7 @@ export function AiChatPanel() {
   const currentSessionId = useChatStore((s) => s.currentSessionId);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const lastSendRef = useRef<LastSendParams | null>(null);
   const currentProject = useDeckStore((s) => s.currentProject);
 
   // Load chat sessions for current project
@@ -43,17 +56,23 @@ export function AiChatPanel() {
     }
   };
 
-  const handleSend = useCallback(async () => {
-    const text = input.trim();
-    if (!text || isProcessing) return;
-    setInput("");
-
+  /** Core send logic — used by both handleSend and retry. */
+  const executeSend = useCallback(async (
+    text: string,
+    context: ContextBarSnapshot | undefined,
+    contextRefs: MessageContextRefs | undefined,
+    isRetry = false,
+  ) => {
     const { addMessage, setProcessing, setCurrentStage, setPendingApproval, setPendingStyleInquiry, addLog, clearLogs } =
       useChatStore.getState();
 
-    addMessage("user", text);
+    // Show "(retry)" label in chat UI but send original text to pipeline
+    addMessage("user", isRetry ? `(retry) ${text}` : text, undefined, contextRefs);
     setProcessing(true);
     clearLogs();
+
+    // Save for potential retry
+    lastSendRef.current = { text, context, contextRefs };
 
     const callbacks: PipelineCallbacks = {
       onStageChange: (stage) => {
@@ -61,7 +80,6 @@ export function AiChatPanel() {
       },
       onLog: (message) => {
         addLog(message);
-        // Surface guide reads as chat messages so the user can see them in history
         if (message.startsWith("[guide]")) {
           addMessage("assistant", message.replace("[guide] ", "📖 "));
         }
@@ -90,14 +108,59 @@ export function AiChatPanel() {
       },
     };
 
-    // Pass recent chat history so planner can see style preference answers
     const recentMessages = useChatStore.getState().messages
       .filter((m) => m.role === "user" || m.role === "assistant")
       .slice(-10)
       .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
 
-    await runPipeline(text, callbacks, recentMessages);
-  }, [input, isProcessing]);
+    await runPipeline(text, callbacks, recentMessages, context);
+  }, []);
+
+  const handleSend = useCallback(async () => {
+    const text = input.trim();
+    if (!text || isProcessing) return;
+    setInput("");
+
+    // Snapshot context bar
+    const ctxState = useContextBarStore.getState();
+    const context: ContextBarSnapshot | undefined =
+      (ctxState.slideRef && !ctxState.slideRefDismissed) ||
+      ctxState.elementRefs.length > 0 ||
+      ctxState.projectRefs.length > 0
+        ? {
+            currentSlide: ctxState.slideRef && !ctxState.slideRefDismissed
+              ? { slideId: ctxState.slideRef.slideId, slideIndex: ctxState.slideRef.slideIndex, title: ctxState.slideRef.slideTitle }
+              : null,
+            elements: ctxState.elementRefs.map((r) => ({
+              elementId: r.elementId,
+              slideId: r.slideId,
+              type: r.type,
+              label: r.label,
+            })),
+            projectNames: ctxState.projectRefs.map((r) => r.name),
+          }
+        : undefined;
+
+    // Build contextRefs for message display
+    const contextRefs: MessageContextRefs | undefined = context
+      ? {
+          ...(context.currentSlide ? { slide: context.currentSlide } : {}),
+          ...(context.elements.length > 0 ? { elements: context.elements.map((e) => ({ elementId: e.elementId, type: e.type, label: e.label })) } : {}),
+          ...(context.projectNames.length > 0 ? { projects: context.projectNames } : {}),
+        }
+      : undefined;
+
+    // Clear element refs after send (project refs persist)
+    useContextBarStore.getState().clearElementRefs();
+
+    await executeSend(text, context, contextRefs);
+  }, [input, isProcessing, executeSend]);
+
+  const handleRetry = useCallback(async () => {
+    if (!lastSendRef.current || isProcessing) return;
+    const { text, context, contextRefs } = lastSendRef.current;
+    await executeSend(text, context, contextRefs, true);
+  }, [isProcessing, executeSend]);
 
   const handleApprove = (approved: boolean) => {
     const { pendingApproval, setPendingApproval, addMessage } = useChatStore.getState();
@@ -227,6 +290,7 @@ export function AiChatPanel() {
               Reset Key
             </button>
           </div>
+          <ReferenceProjectsSection />
         </div>
       )}
 
@@ -237,7 +301,7 @@ export function AiChatPanel() {
             Ask me to create slides, modify content, write speaker notes, or review your deck.
           </div>
         )}
-        {messages.map((msg) => (
+        {messages.map((msg, msgIdx) => (
           <div
             key={msg.id}
             className={`text-xs leading-relaxed ${
@@ -248,11 +312,40 @@ export function AiChatPanel() {
                   : "text-zinc-300 bg-zinc-900 rounded-lg px-3 py-2 mr-8"
             }`}
           >
+            {/* Context refs display */}
+            {msg.contextRefs && (
+              <div className="flex flex-wrap gap-1 mb-1.5">
+                {msg.contextRefs.slide && (
+                  <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-zinc-700/50 text-[9px] text-zinc-400">
+                    📄 Slide {msg.contextRefs.slide.slideIndex + 1}
+                  </span>
+                )}
+                {msg.contextRefs.elements?.map((e) => (
+                  <span key={e.elementId} className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-zinc-700/50 text-[9px] text-zinc-400">
+                    ◇ {e.type}: {e.label}
+                  </span>
+                ))}
+                {msg.contextRefs.projects?.map((p) => (
+                  <span key={p} className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-zinc-700/50 text-[9px] text-zinc-400">
+                    📁 @{p}
+                  </span>
+                ))}
+              </div>
+            )}
             <div className="whitespace-pre-wrap">{msg.content.replace(/\\n/g, "\n")}</div>
             {msg.stage && (
               <div className="text-[10px] text-zinc-500 mt-1">
                 Stage: {stageLabel(msg.stage)}
               </div>
+            )}
+            {/* Retry button on error messages */}
+            {msg.role === "system" && msg.content.startsWith("Error:") && msgIdx === messages.length - 1 && !isProcessing && (
+              <button
+                onClick={handleRetry}
+                className="mt-1.5 px-2 py-0.5 text-[10px] bg-zinc-700 text-zinc-300 rounded hover:bg-zinc-600 transition-colors"
+              >
+                Retry
+              </button>
             )}
           </div>
         ))}
@@ -299,21 +392,54 @@ export function AiChatPanel() {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input */}
+      {/* Context bar + Input */}
+      <ContextBar />
       <div className="border-t border-zinc-800 px-3 py-2">
-        <div className="flex gap-2">
+        <div className="relative flex gap-2">
+          {mentionActive && (
+            <AtMentionDropdown
+              inputValue={input}
+              cursorPosition={cursorPos}
+              onSelect={() => {
+                // Remove @query from input
+                const before = input.slice(0, cursorPos);
+                const atIdx = before.lastIndexOf("@");
+                const after = input.slice(cursorPos);
+                setInput(before.slice(0, atIdx) + after);
+                setCursorPos(atIdx);
+                setMentionActive(false);
+              }}
+              onDismiss={() => setMentionActive(false)}
+            />
+          )}
           <textarea
             ref={inputRef}
             value={input}
             onChange={(e) => {
-              setInput(e.target.value);
+              const val = e.target.value;
+              const pos = e.target.selectionStart ?? val.length;
+              setInput(val);
+              setCursorPos(pos);
+              // Detect @ mention
+              const textBefore = val.slice(0, pos);
+              const atIdx = textBefore.lastIndexOf("@");
+              const active =
+                atIdx !== -1 &&
+                (atIdx === 0 || /\s/.test(textBefore[atIdx - 1]!)) &&
+                !textBefore.slice(atIdx + 1).includes(" ");
+              setMentionActive(active);
               // Auto-resize
               const el = e.target;
               el.style.height = "auto";
               el.style.height = Math.min(el.scrollHeight, 120) + "px";
             }}
-            onKeyDown={handleKeyDown}
-            placeholder="Ask AI..."
+            onKeyDown={(e) => {
+              // Let AtMentionDropdown handle keys when active
+              if (mentionActive && ["ArrowDown", "ArrowUp", "Tab"].includes(e.key)) return;
+              if (mentionActive && e.key === "Enter") return;
+              handleKeyDown(e);
+            }}
+            placeholder="Ask AI... (@ to reference a project)"
             disabled={isProcessing}
             rows={1}
             className="flex-1 bg-zinc-800 border border-zinc-700 rounded px-3 py-1.5 text-xs text-zinc-200 resize-none focus:outline-none focus:border-blue-500 disabled:opacity-50"
@@ -415,6 +541,44 @@ function StylePreferenceForm() {
         className="w-full text-xs py-1.5 bg-blue-600 text-white rounded hover:bg-blue-500 transition-colors mt-1"
       >
         Apply Preferences
+      </button>
+    </div>
+  );
+}
+
+function ReferenceProjectsSection() {
+  const registeredProjects = useProjectRefStore((s) => s.registeredProjects);
+  const registerProject = useProjectRefStore((s) => s.registerProject);
+  const unregisterProject = useProjectRefStore((s) => s.unregisterProject);
+
+  // Load registered projects on mount
+  useEffect(() => {
+    useProjectRefStore.getState().loadRegistered();
+  }, []);
+
+  return (
+    <div className="pt-2 border-t border-zinc-800 mt-2">
+      <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1.5">Reference Projects</div>
+      {registeredProjects.length > 0 && (
+        <div className="space-y-1 mb-1.5">
+          {registeredProjects.map((p) => (
+            <div key={p.name} className="flex items-center justify-between gap-2">
+              <span className="text-[10px] text-zinc-300 truncate">📁 {p.name}</span>
+              <button
+                onClick={() => unregisterProject(p.name)}
+                className="text-[10px] text-zinc-500 hover:text-red-400 transition-colors shrink-0"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      <button
+        onClick={() => registerProject()}
+        className="text-[10px] text-blue-400 hover:text-blue-300 transition-colors"
+      >
+        + Add Reference Folder
       </button>
     </div>
   );

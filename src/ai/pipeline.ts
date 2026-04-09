@@ -1,8 +1,9 @@
 import type { Deck, Slide, SlideElement } from "@/types/deck";
 import { useDeckStore } from "@/stores/deckStore";
 import { callGemini, buildFunctionDeclarations, type GeminiModel, type DeckodeTool, getModelForAgent } from "./geminiClient";
-import { buildPlannerPrompt, buildGeneratorPrompt, buildContentAgentPrompt, buildVisualAgentPrompt, buildReviewerPrompt, buildWriterPrompt } from "./prompts";
-import { generatorTools, reviewerTools, writerTools } from "./tools";
+import { buildPlannerPrompt, buildGeneratorPrompt, buildContentAgentPrompt, buildVisualAgentPrompt, buildReviewerPrompt, buildWriterPrompt, type PromptContext } from "./prompts";
+import { generatorTools, reviewerTools, writerTools, plannerTools, projectFileTools } from "./tools";
+import { useProjectRefStore } from "@/stores/projectRefStore";
 import { readGuide } from "./guides";
 import { validateDeck, buildFixInstructions } from "./validation";
 import type { Content } from "@google/generative-ai";
@@ -39,6 +40,8 @@ export interface StylePreferences {
   highlightBoxes: boolean;
   notesTone: "narrative" | "telegraphic" | "scripted";
 }
+
+export type ContextBarSnapshot = PromptContext;
 
 export interface PipelineCallbacks {
   onStageChange: (stage: string) => void;
@@ -120,7 +123,7 @@ function sanitizeToolArgs(obj: unknown): void {
   }
 }
 
-function executeTool(name: string, args: Record<string, unknown>): string {
+async function executeTool(name: string, args: Record<string, unknown>): Promise<string> {
   // Sanitize text content and fix missing arrow waypoints
   sanitizeToolArgs(args);
 
@@ -216,6 +219,18 @@ function executeTool(name: string, args: Record<string, unknown>): string {
       store.deleteElement(slideId, elementId);
       return `Element "${elementId}" deleted from slide "${slideId}".`;
     }
+    case "list_project_files": {
+      const projectName = args.projectName as string;
+      const path = args.path as string | undefined;
+      const files = await useProjectRefStore.getState().listFiles(projectName, path);
+      return JSON.stringify(files, null, 2);
+    }
+    case "read_project_file": {
+      const projectName = args.projectName as string;
+      const filePath = args.filePath as string;
+      const content = await useProjectRefStore.getState().readFile(projectName, filePath);
+      return content;
+    }
     default:
       return `Unknown tool: ${name}`;
   }
@@ -275,7 +290,7 @@ async function callAgentWithTools(
         onLog(`  → ${fc.name}(${JSON.stringify(fc.args).slice(0, 120)}...)`);
       }
       try {
-        const result = executeTool(fc.name, fc.args);
+        const result = await executeTool(fc.name, fc.args);
         functionResponses.push(`${fc.name} result: ${result}`);
       } catch (err) {
         const errMsg = err instanceof Error ? err.message : String(err);
@@ -302,35 +317,67 @@ async function runPlanner(
   userMessage: string,
   cb: PipelineCallbacks,
   chatHistory?: Array<{ role: "user" | "assistant"; content: string }>,
+  context?: ContextBarSnapshot,
 ): Promise<PlanResult | null> {
   cb.onStageChange("plan");
   cb.onLog("Analyzing intent and creating plan...");
 
   const deck = useDeckStore.getState().deck;
-  const prompt = buildPlannerPrompt(deck);
+  const prompt = buildPlannerPrompt(deck, context);
 
   // Convert chat history to Gemini Content format
   const history: Content[] = (chatHistory ?? []).map((msg) => ({
     role: msg.role === "user" ? "user" : "model",
     parts: [{ text: msg.content }],
   }));
+  // Gemini requires history to start with "user" role — drop leading model messages
+  while (history.length > 0 && history[0]!.role !== "user") {
+    history.shift();
+  }
 
-  const response = await callGemini({
-    model: getModelForAgent("planner"),
-    systemInstruction: prompt,
-    history,
-    message: userMessage,
-  });
+  // If projects are referenced, give planner access to project file tools
+  // so it can answer questions about project contents directly
+  const hasProjects = context?.projectNames && context.projectNames.length > 0;
+  let responseText: string;
+
+  if (hasProjects) {
+    const tools = [...plannerTools, ...projectFileTools];
+    responseText = await callAgentWithTools(
+      getModelForAgent("planner"),
+      prompt,
+      tools,
+      userMessage,
+      history,
+      cb.onLog,
+    );
+  } else {
+    const response = await callGemini({
+      model: getModelForAgent("planner"),
+      systemInstruction: prompt,
+      history,
+      message: userMessage,
+    });
+    responseText = response.text;
+  }
 
   try {
     // Clean response text - remove markdown code fences if present
-    let text = response.text.trim();
+    let text = responseText.trim();
     if (text.startsWith("```")) {
       text = text.replace(/^```(?:json)?\s*/, "").replace(/\s*```$/, "");
     }
     return JSON.parse(text) as PlanResult;
   } catch {
-    cb.onError(`Planner returned invalid JSON: ${response.text.slice(0, 200)}`);
+    // When planner used tools (e.g. project file listing), it may return
+    // free-form text instead of JSON. Wrap it as a "chat" intent response.
+    if (hasProjects && responseText.trim().length > 0) {
+      return {
+        intent: "chat" as PipelineIntent,
+        response: responseText.trim(),
+        reasoning: "Planner explored reference project and returned a direct response.",
+      };
+    }
+    cb.onError(`Planner returned invalid JSON: ${responseText.slice(0, 200)}`);
     return null;
   }
 }
@@ -338,16 +385,20 @@ async function runPlanner(
 async function runGenerator(
   plan: PlanResult,
   cb: PipelineCallbacks,
+  context?: ContextBarSnapshot,
 ): Promise<string> {
   cb.onStageChange("generate");
+
+  const hasProjects = context?.projectNames && context.projectNames.length > 0;
+  const tools = hasProjects ? [...generatorTools, ...projectFileTools] : generatorTools;
 
   // Modify intent: single call (no slide plan available)
   if (!plan.plan?.slides || plan.intent === "modify") {
     cb.onLog("Generating modifications...");
     const deck = useDeckStore.getState().deck;
-    const prompt = buildGeneratorPrompt(deck);
+    const prompt = buildGeneratorPrompt(deck, context);
     const planMessage = `Execute these modifications:\n${plan.actions?.join("\n")}`;
-    return callAgentWithTools(getModelForAgent("generator"), prompt, generatorTools, planMessage, [], cb.onLog);
+    return callAgentWithTools(getModelForAgent("generator"), prompt, tools, planMessage, [], cb.onLog);
   }
 
   // Create intent: slide-by-slide loop
@@ -368,7 +419,7 @@ async function runGenerator(
       if (existingDeck?.slides.some((s) => s.id === slidePlan.id)) break; // already created
 
       const currentDeck = useDeckStore.getState().deck;
-      const contentPrompt = buildContentAgentPrompt(currentDeck);
+      const contentPrompt = buildContentAgentPrompt(currentDeck, context);
       const contentMessage = `Create ONLY this one slide (do not create other slides):
 ${JSON.stringify(slidePlan, null, 2)}
 
@@ -376,7 +427,7 @@ ${slideContext}
 After calling add_slide, briefly confirm.`;
 
       cb.onLog(`  [content] Creating text/code/table elements... (gen ${genAttempt}/${maxGenAttempts})`);
-      await callAgentWithTools(getModelForAgent("generator"), contentPrompt, generatorTools, contentMessage, [], cb.onLog);
+      await callAgentWithTools(getModelForAgent("generator"), contentPrompt, tools, contentMessage, [], cb.onLog);
     }
 
     // --- Visual Agent: runs once after generation ---
@@ -398,7 +449,7 @@ After calling add_slide, briefly confirm.`;
         ["shape", "arrow", "tikz", "diagram", "scene3d"].includes(t),
       ) ?? [];
       cb.onLog(`  [visual] Adding ${visualTypes.join("/")} to ${slidePlan.id}...`);
-      const visualPrompt = buildVisualAgentPrompt(deckForVisual);
+      const visualPrompt = buildVisualAgentPrompt(deckForVisual, context);
       const visualMessage = `REQUIRED: Add visual element(s) to slide ${slidePlan.id}. You MUST call add_element at least once. Do not finish without adding a visual element.
 
 Required element types for this slide: ${visualTypes.join(", ")}
@@ -409,7 +460,7 @@ Steps:
 1. Call read_slide("${slidePlan.id}") to see existing elements
 2. Add the required visual element(s) in the RIGHT column: x:490, y:80, w:440, h:380
 3. Do NOT create duplicate IDs. Use unique IDs like "${slidePlan.id}-visual-1"`;
-      await callAgentWithTools(getModelForAgent("generator"), visualPrompt, generatorTools, visualMessage, [], cb.onLog);
+      await callAgentWithTools(getModelForAgent("generator"), visualPrompt, tools, visualMessage, [], cb.onLog);
     }
 
     // Phase 2: Fix pass — reviewer only, generation does NOT re-run
@@ -522,10 +573,11 @@ export async function runPipeline(
   userMessage: string,
   cb: PipelineCallbacks,
   chatHistory?: Array<{ role: "user" | "assistant"; content: string }>,
+  context?: ContextBarSnapshot,
 ): Promise<void> {
   try {
     // Stage 1: Plan
-    const plan = await runPlanner(userMessage, cb, chatHistory);
+    const plan = await runPlanner(userMessage, cb, chatHistory, context);
     if (!plan) return;
 
     // Direct chat response — no pipeline needed
@@ -551,7 +603,7 @@ export async function runPipeline(
         { role: "user" as const, content: `My style preferences:\n${prefsText}` },
       ];
       // Re-run pipeline with preferences included
-      return runPipeline(enrichedMessage, cb, updatedHistory);
+      return runPipeline(enrichedMessage, cb, updatedHistory, context);
     }
 
     // Notes-only path
@@ -577,7 +629,7 @@ export async function runPipeline(
       }
 
       // Stage 2: Generate
-      const genResult = await runGenerator(plan, cb);
+      const genResult = await runGenerator(plan, cb, context);
       cb.onLog(genResult);
 
       // Stage 3: Review

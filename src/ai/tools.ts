@@ -174,6 +174,37 @@ export const deckodeTools: DeckodeTool[] = [
   },
 ];
 
+// ── Project file reference tools (only available when a project is @mentioned) ──
+
+export const projectFileTools: DeckodeTool[] = [
+  {
+    name: "list_project_files",
+    description:
+      "List files in a registered reference project directory. Returns relative file paths. Use to discover available source files before reading them.",
+    parameters: {
+      type: SchemaType.OBJECT,
+      properties: {
+        projectName: { type: SchemaType.STRING, description: "Name of the registered project" },
+        path: { type: SchemaType.STRING, description: "Subdirectory path to list (optional, defaults to root)" },
+      },
+      required: ["projectName"],
+    },
+  },
+  {
+    name: "read_project_file",
+    description:
+      "Read the contents of a file from a registered reference project. Returns the file text content (max 100KB).",
+    parameters: {
+      type: SchemaType.OBJECT,
+      properties: {
+        projectName: { type: SchemaType.STRING, description: "Name of the registered project" },
+        filePath: { type: SchemaType.STRING, description: "Relative file path within the project" },
+      },
+      required: ["projectName", "filePath"],
+    },
+  },
+];
+
 export const plannerTools: DeckodeTool[] = deckodeTools.filter(
   (t) => t.name === "read_deck" || t.name === "read_slide" || t.name === "read_guide",
 );

@@ -1,6 +1,45 @@
 import type { Deck } from "@/types/deck";
 import { GUIDE_INDEX, readGuide } from "./guides";
 
+// Shared context shape — matches ContextBarSnapshot in pipeline.ts (defined here to avoid circular deps)
+export interface PromptContext {
+  currentSlide: { slideId: string; slideIndex: number; title: string } | null;
+  elements: Array<{ elementId: string; slideId: string; type: string; label: string }>;
+  projectNames: string[];
+}
+
+/**
+ * Build the "Attached Context" section for AI system prompts.
+ * @param forPlanner — if true, omit tool instructions (planner outputs JSON, doesn't call tools)
+ */
+export function buildContextSection(ctx: PromptContext | undefined, forPlanner = false): string {
+  if (!ctx) return "";
+  const parts: string[] = [];
+
+  if (ctx.currentSlide) {
+    parts.push(`- User is viewing Slide ${ctx.currentSlide.slideIndex + 1} [${ctx.currentSlide.slideId}]: "${ctx.currentSlide.title}"`);
+  }
+
+  if (ctx.elements.length > 0) {
+    const elList = ctx.elements
+      .map((e) => `${e.elementId} (${e.type}: "${e.label}")`)
+      .join(", ");
+    parts.push(`- User selected elements: ${elList}`);
+  }
+
+  if (ctx.projectNames.length > 0) {
+    parts.push(`- Reference projects available: ${ctx.projectNames.map((n) => `@${n}`).join(", ")}`);
+    if (forPlanner) {
+      parts.push(`  You have list_project_files and read_project_file tools available when projects are attached. Use them to explore project contents if the user asks.`);
+    } else {
+      parts.push(`  Use list_project_files and read_project_file tools with these project names to access their source code when relevant to the user's request.`);
+    }
+  }
+
+  if (parts.length === 0) return "";
+  return `\n## User's Attached Context\n${parts.join("\n")}\n`;
+}
+
 // Layer 1: Role definition
 // Layer 2: Guide index (deckode-guide.md) — lightweight for planner/reviewer/writer
 // Layer 3: Current state
@@ -24,6 +63,7 @@ function getGeneratorSchema(): string {
     readGuide("05-animations"),
     readGuide("08a-guidelines"),
     readGuide("08c-visual-style"),
+    readGuide("08d-layout-templates"),
   ].join("\n\n---\n\n");
 }
 
@@ -40,6 +80,7 @@ function getContentAgentSchema(): string {
     readGuide("05-animations"),
     readGuide("08a-guidelines"),
     readGuide("08c-visual-style"),
+    readGuide("08d-layout-templates"),
   ].join("\n\n---\n\n");
 }
 
@@ -52,13 +93,16 @@ function getVisualAgentSchema(): string {
     readGuide("04e-elem-diagrams"),
     readGuide("08a-guidelines"),
     readGuide("08c-visual-style"),
+    readGuide("08d-layout-templates"),
   ].join("\n\n---\n\n");
 }
 
-export function buildPlannerPrompt(deck: Deck | null): string {
+export function buildPlannerPrompt(deck: Deck | null, context?: PromptContext): string {
   const state = deck
     ? `\n## Current Deck State\nTitle: "${deck.meta.title}"\nSlides: ${deck.slides.length}\n${deck.slides.map((s, i) => `  ${i + 1}. [${s.id}] ${s.elements.filter((e) => e.type === "text").map((e) => (e as { content: string }).content.slice(0, 60)).join(" | ") || "(no text)"} ${s.notes ? "(has notes)" : ""}`).join("\n")}\n`
     : "\n## Current Deck State\nNo deck loaded (will create new).\n";
+
+  const contextSection = buildContextSection(context, true);
 
   return `## Role
 You are the Planner agent for Deckode, a JSON-based slide platform. Your job is to:
@@ -69,8 +113,7 @@ You are the Planner agent for Deckode, a JSON-based slide platform. Your job is 
 ${GUIDE_OVERVIEW}
 
 You have a read_guide tool to fetch detailed documentation sections listed above. Use it when you need specifics about element types, animations, or guidelines.
-${state}
-
+${state}${contextSection}
 ## Output Format
 Respond with a JSON object (no markdown code fences):
 {
@@ -84,6 +127,7 @@ Respond with a JSON object (no markdown code fences):
         "id": "s1",
         "title": "slide title",
         "type": "title | content | code | diagram | comparison | summary",
+        "template": "t-title-a (optional — recommended layout template ID from 08d)",
         "keyPoints": ["point 1", "point 2"],
         "elementTypes": ["text", "shape", "table", "code"]
       }
@@ -106,6 +150,13 @@ For "review" intent:
 
 Important: For "create", always include a title slide first and plan diagrams using shape elements (not mermaid/tikz).
 
+## Reference Project Queries
+When the user has attached a reference project and asks about its contents or code, you have list_project_files and read_project_file tools available. Use them to explore the project, then classify the intent and respond appropriately. For exploratory questions ("what's inside?"), use "chat" intent and include your findings in the response.
+
+## Layout Templates
+Available templates (from guide 08d-layout-templates): t-title-a, t-title-b, t-section, t-three-metric, t-card-gallery, t-triple-image, t-image-annotated, t-two-image, t-image-table, t-code-panel, t-math, t-hero-stat, t-timeline.
+For each slide in the plan, optionally include a "template" field with the recommended template ID. Downstream agents will use this as a layout reference.
+
 ## Style Preferences (MANDATORY for new decks)
 Before creating a new deck, you MUST check whether the user has already specified their style preferences in the conversation history.
 
@@ -120,9 +171,9 @@ Once preferences are chosen, apply them consistently to all subsequent slides wi
 `;
 }
 
-export function buildGeneratorPrompt(deck: Deck | null): string {
+export function buildGeneratorPrompt(deck: Deck | null, context?: PromptContext): string {
   const state = deck ? formatDeckState(deck) : "No deck loaded.";
-
+  const contextSection = buildContextSection(context);
   const schema = getGeneratorSchema();
 
   return `## Role
@@ -132,6 +183,7 @@ ${schema}
 
 ## Current Deck State
 ${state}
+${contextSection}
 
 ## Instructions
 - You have a read_guide tool to fetch detailed specs for any element type, animations, theme, etc. Use it before creating unfamiliar element types (tikz, scene3d, table, etc.).
@@ -141,6 +193,7 @@ ${state}
 - Create slides one at a time with ALL elements included in the slide object
 - ALWAYS include presenter notes in every slide (notes field) — describe what the presenter should say
 - Use the style guide colors, fonts, and layout patterns consistently
+- If the plan includes a "template" field, use the layout template from guide 08d as a starting point — match element positions, sizes, and palette
 - For diagrams: build with shape (rectangle, arrow) + text elements, grouped with groupId
 - Code elements: show only the essential 5-8 lines that illustrate the concept — never paste entire files (hard limit: 25 lines)
 - KaTeX math: use SINGLE backslash for ALL commands (\pi, \sum, \mathbf{x}, \alpha). NEVER double-backslash (\\pi is wrong). For bold math use \mathbf{} or \boldsymbol{} — NOT \bm{} (unsupported in KaTeX). Multi-line equations need \begin{aligned}...\end{aligned}
@@ -193,8 +246,9 @@ Write notes that help the presenter deliver the content:
 - ONLY use [step:N]...[/step] markers when the slide has onClick animations. The number of [step:N] markers MUST exactly match the number of onClick animations. No onClick animations = no step markers.
 - Include key talking points and transitions to the next slide`;
 
-export function buildContentAgentPrompt(deck: Deck | null): string {
+export function buildContentAgentPrompt(deck: Deck | null, context?: PromptContext): string {
   const state = deck ? formatDeckState(deck) : "No deck loaded.";
+  const contextSection = buildContextSection(context);
   const schema = getContentAgentSchema();
 
   return `## Role
@@ -205,8 +259,10 @@ ${schema}
 
 ## Current Deck State
 ${state}
+${contextSection}
 
 ## Instructions
+- If the plan includes a "template" field, refer to the layout template from guide 08d-layout-templates for element positions, sizes, and styles. Use it as a starting point and adapt the content.
 - Create the slide with add_slide, including ALL text, code, and table elements
 - For this slide, use text elements for: title, bullet points, labels, captions, descriptions
 - For code slides, use the code element type with appropriate language — show only 5-8 key lines, no full files
@@ -230,8 +286,9 @@ ${NOTES_SECTION}
 `;
 }
 
-export function buildVisualAgentPrompt(deck: Deck | null): string {
+export function buildVisualAgentPrompt(deck: Deck | null, context?: PromptContext): string {
   const state = deck ? formatDeckState(deck) : "No deck loaded.";
+  const contextSection = buildContextSection(context);
   const schema = getVisualAgentSchema();
 
   return `## Role
@@ -242,6 +299,7 @@ ${schema}
 
 ## Current Deck State
 ${state}
+${contextSection}
 
 ## Instructions
 - Call read_slide FIRST to inspect existing elements, their positions, and IDs before adding anything

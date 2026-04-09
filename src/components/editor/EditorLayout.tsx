@@ -273,7 +273,7 @@ export function EditorLayout() {
       // Copy: Ctrl+C — let browser handle if user has text selected
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.code === "KeyC") {
         if (hasTextSelection) return;
-        const { deck, currentSlideIndex, selectedElementIds } = useDeckStore.getState();
+        const { deck, currentSlideIndex, selectedElementIds, selectedSlideIds } = useDeckStore.getState();
         if (deck) {
           const slide = deck.slides[currentSlideIndex];
           if (slide && selectedElementIds.length > 0) {
@@ -294,17 +294,35 @@ export function EditorLayout() {
                 }
               }
               // Write to system clipboard for cross-instance paste
-              const clipData: Record<string, unknown> = { __deckode: true, elements };
+              const clipData: Record<string, unknown> = { __deckode: true, origin: window.location.origin, project: adapter.projectName, elements };
               if (Object.keys(components).length > 0) clipData.components = components;
               navigator.clipboard.writeText(JSON.stringify(clipData)).catch(() => {});
               e.preventDefault();
             }
           } else if (slide) {
-            // No elements selected → copy current slide
-            const slideData = JSON.parse(JSON.stringify(slide));
-            setSlideClipboard(slideData);
+            // No elements selected → copy selected slides (or current slide)
+            const slidesToCopy = selectedSlideIds.length > 1
+              ? selectedSlideIds
+                  .map(id => deck.slides.find(s => s.id === id))
+                  .filter((s): s is import("@/types/deck").Slide => s !== undefined)
+              : [slide];
+            const slidesData: import("@/types/deck").Slide[] = JSON.parse(JSON.stringify(slidesToCopy));
+            // Collect referenced components from all slides
+            const components: Record<string, SharedComponent> = {};
+            for (const s of slidesData) {
+              for (const el of s.elements) {
+                if (el.type === "reference" && deck.components) {
+                  const compId = (el as ReferenceElement).componentId;
+                  const comp = deck.components[compId];
+                  if (comp) components[compId] = comp;
+                }
+              }
+            }
+            setSlideClipboard(slidesData);
             setElementClipboard(null);
-            navigator.clipboard.writeText(JSON.stringify({ __deckode: true, slide: slideData })).catch(() => {});
+            const clipData: Record<string, unknown> = { __deckode: true, origin: window.location.origin, project: adapter.projectName, slides: slidesData };
+            if (Object.keys(components).length > 0) clipData.components = components;
+            navigator.clipboard.writeText(JSON.stringify(clipData)).catch(() => {});
             e.preventDefault();
           }
         }
@@ -324,7 +342,7 @@ export function EditorLayout() {
               const cloned = JSON.parse(JSON.stringify(elements));
               setElementClipboard(cloned);
               // Write to system clipboard so paste event can access it
-              navigator.clipboard.writeText(JSON.stringify({ __deckode: true, elements: cloned })).catch(() => {});
+              navigator.clipboard.writeText(JSON.stringify({ __deckode: true, origin: window.location.origin, project: adapter.projectName, elements: cloned })).catch(() => {});
               for (const elId of [...selectedElementIds]) {
                 deleteElement(slide.id, elId);
               }

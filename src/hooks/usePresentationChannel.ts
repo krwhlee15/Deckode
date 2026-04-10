@@ -42,7 +42,7 @@ export function usePresentationChannel(callbacks: Callbacks) {
   const channelRef = useRef<BroadcastChannel | null>(null);
 
   useEffect(() => {
-    const ch = new BroadcastChannel("deckode-present");
+    const ch = new BroadcastChannel("tekkal-present");
     channelRef.current = ch;
 
     ch.onmessage = (e: MessageEvent<PresentMessage>) => {

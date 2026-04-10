@@ -1,7 +1,7 @@
 import { SchemaType } from "@google/generative-ai";
-import type { DeckodeTool } from "./geminiClient";
+import type { TekkalTool } from "./geminiClient";
 
-export const deckodeTools: DeckodeTool[] = [
+export const tekkalTools: TekkalTool[] = [
   {
     name: "read_deck",
     description:
@@ -165,7 +165,7 @@ export const deckodeTools: DeckodeTool[] = [
       properties: {
         deck: {
           type: SchemaType.OBJECT,
-          description: "Complete deck object with deckode version, meta, theme, and slides",
+          description: "Complete deck object with version, meta, theme, and slides",
           properties: {},
         },
       },
@@ -818,7 +818,7 @@ export const deckodeTools: DeckodeTool[] = [
 
 // ── Project file reference tools (only available when a project is @mentioned) ──
 
-export const projectFileTools: DeckodeTool[] = [
+export const projectFileTools: TekkalTool[] = [
   {
     name: "list_project_files",
     description:
@@ -867,14 +867,14 @@ const REVIEWER_WRITE_TOOL_NAMES = new Set([
   "validate_deck",
 ]);
 
-export const plannerTools: DeckodeTool[] = deckodeTools.filter((t) => READ_TOOL_NAMES.has(t.name));
+export const plannerTools: TekkalTool[] = tekkalTools.filter((t) => READ_TOOL_NAMES.has(t.name));
 
-export const generatorTools: DeckodeTool[] = deckodeTools; // all tools (includes read_guide)
+export const generatorTools: TekkalTool[] = tekkalTools; // all tools (includes read_guide)
 
-export const reviewerTools: DeckodeTool[] = deckodeTools.filter(
+export const reviewerTools: TekkalTool[] = tekkalTools.filter(
   (t) => READ_TOOL_NAMES.has(t.name) || REVIEWER_WRITE_TOOL_NAMES.has(t.name),
 );
 
-export const writerTools: DeckodeTool[] = deckodeTools.filter(
+export const writerTools: TekkalTool[] = tekkalTools.filter(
   (t) => READ_TOOL_NAMES.has(t.name) || t.name === "update_slide",
 );

@@ -1,25 +1,39 @@
 import { useState, useEffect } from "react";
 
-const STORAGE_KEY = "deckode-project-paths";
+const STORAGE_KEY = "tekkal-project-paths";
+const LEGACY_STORAGE_KEY = "deckode-project-paths";
+
+function readPathMap(): Record<string, string> {
+  try {
+    let raw = localStorage.getItem(STORAGE_KEY);
+    if (raw === null) {
+      const legacy = localStorage.getItem(LEGACY_STORAGE_KEY);
+      if (legacy !== null) {
+        localStorage.setItem(STORAGE_KEY, legacy);
+        localStorage.removeItem(LEGACY_STORAGE_KEY);
+        raw = legacy;
+      }
+    }
+    return raw ? (JSON.parse(raw) as Record<string, string>) : {};
+  } catch {
+    return {};
+  }
+}
 
 export function getStoredProjectPath(projectName: string): string | null {
-  try {
-    const data = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}");
-    return data[projectName] ?? null;
-  } catch {
-    return null;
-  }
+  return readPathMap()[projectName] ?? null;
 }
 
 function setStoredProjectPath(projectName: string, absPath: string | null) {
   try {
-    const data = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}");
+    const data = readPathMap();
     if (absPath) {
       data[projectName] = absPath;
     } else {
       delete data[projectName];
     }
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    localStorage.removeItem(LEGACY_STORAGE_KEY);
   } catch {
     // localStorage unavailable
   }

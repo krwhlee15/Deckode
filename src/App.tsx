@@ -172,7 +172,7 @@ export function App() {
   const tryMerge = useCallback((remoteDeck: Deck) => {
     const result = useDeckStore.getState().mergeExternalChange(remoteDeck);
     if (result === "merged") {
-      console.log("[deckode] External change merged");
+      console.log("[tekkal] External change merged");
     } else if (result === "conflict") {
       setExternalChange(true);
     }

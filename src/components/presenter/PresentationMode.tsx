@@ -433,7 +433,7 @@ export function PresentationMode({ onExit }: PresentationModeProps) {
     const url = `?${params.toString()}`;
     audienceWindowRef.current = window.open(
       url,
-      "deckode-audience",
+      "tekkal-audience",
       "width=960,height=540,menubar=no,toolbar=no,location=no,status=no",
     );
   }, []);

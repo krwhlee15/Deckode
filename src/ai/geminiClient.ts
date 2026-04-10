@@ -212,7 +212,7 @@ export async function callGeminiStream(opts: GeminiCallOptions): Promise<GeminiR
   return { text: fullText, functionCalls: allFunctionCalls };
 }
 
-export function buildFunctionDeclarations(tools: DeckodeTool[]): Tool[] {
+export function buildFunctionDeclarations(tools: TekkalTool[]): Tool[] {
   const declarations = tools.map((t) => ({
     name: t.name,
     description: t.description,
@@ -221,7 +221,7 @@ export function buildFunctionDeclarations(tools: DeckodeTool[]): Tool[] {
   return [{ functionDeclarations: declarations }];
 }
 
-export interface DeckodeTool {
+export interface TekkalTool {
   name: string;
   description: string;
   parameters: {

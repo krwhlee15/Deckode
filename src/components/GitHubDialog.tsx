@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { parseGitHubUrl, buildDeckodeUrls } from "@/utils/github";
+import { parseGitHubUrl, buildTekkalUrls } from "@/utils/github";
 
 interface Props {
   open: boolean;
@@ -14,7 +14,7 @@ export function GitHubDialog({ open, onClose }: Props) {
 
   const urls = useMemo(() => {
     if (!parsed) return null;
-    return buildDeckodeUrls(
+    return buildTekkalUrls(
       window.location.origin,
       window.location.pathname,
       parsed,

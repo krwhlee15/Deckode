@@ -21,7 +21,7 @@ export interface GitDiffResult {
 const EMPTY_SLIDES = new Set<string>();
 const EMPTY_ELEMENTS = new Map<string, ChangeType>();
 const POLL_INTERVAL = 30_000;
-const CACHE_PREFIX = "deckode-git-base:";
+const CACHE_PREFIX = "tekkal-git-base:";
 
 // WeakMap cache: avoids re-serializing unchanged slide objects (immer structural sharing)
 const slideHashCache = new WeakMap<object, string>();

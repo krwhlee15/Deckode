@@ -1,6 +1,6 @@
 import type { Deck, Slide, SlideElement, ImageElement } from "@/types/deck";
 import { useDeckStore } from "@/stores/deckStore";
-import { callGemini, buildFunctionDeclarations, type GeminiModel, type DeckodeTool, getModelForAgent } from "./geminiClient";
+import { callGemini, buildFunctionDeclarations, type GeminiModel, type TekkalTool, getModelForAgent } from "./geminiClient";
 import { buildPlannerPrompt, buildGeneratorPrompt, buildContentAgentPrompt, buildVisualAgentPrompt, buildReviewerPrompt, buildWriterPrompt, extractSlideTitle, type PromptContext } from "./prompts";
 import { generatorTools, reviewerTools, writerTools, plannerTools, projectFileTools } from "./tools";
 import { useProjectRefStore } from "@/stores/projectRefStore";
@@ -1258,7 +1258,7 @@ function messagePartsForHistory(message: string | Part[]): Part[] {
 async function callAgentWithTools(
   model: GeminiModel,
   systemPrompt: string,
-  tools: DeckodeTool[],
+  tools: TekkalTool[],
   message: string,
   history: Content[],
   onLog: (msg: string) => void,

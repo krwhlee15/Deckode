@@ -21,7 +21,7 @@ function makeSlide(id: string, elements: SlideElement[] = []): Slide {
 
 function makeDeck(slides: Slide[]): Deck {
   return {
-    deckode: "0.1.0",
+    version: "0.1.0",
     meta: { title: "Test", aspectRatio: "16:9" },
     slides,
   };

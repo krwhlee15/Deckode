@@ -44,7 +44,7 @@ function makeMockAdapter(): FileSystemAdapter {
 
 function makeBaseDeck(overrides?: Partial<Deck>): Deck {
   return {
-    deckode: "1.0",
+    version: "1.0",
     meta: { title: "Test Presentation", aspectRatio: "16:9" as const },
     slides: [],
     ...overrides,

@@ -1,4 +1,4 @@
-import type { Deck } from "@/types/deck";
+import { normalizeDeckLegacyFields, type Deck } from "@/types/deck";
 import type { FileSystemAdapter, ProjectInfo } from "./types";
 import type { NewProjectConfig } from "@/utils/projectTemplates";
 import { saveHandle, clearHandle } from "@/utils/handleStore";
@@ -144,7 +144,7 @@ export class FsAccessAdapter implements FileSystemAdapter {
       deck = generateBlankDeck(config.title);
     } else {
       // "example" — use bundled default deck
-      deck = JSON.parse(JSON.stringify(exampleDeck)) as Deck;
+      deck = normalizeDeckLegacyFields(JSON.parse(JSON.stringify(exampleDeck)));
       if (config.title) {
         deck.meta.title = config.title;
       }
@@ -176,7 +176,7 @@ export class FsAccessAdapter implements FileSystemAdapter {
     const text = await file.text();
     let deck: Deck;
     try {
-      deck = JSON.parse(text) as Deck;
+      deck = normalizeDeckLegacyFields(JSON.parse(text));
     } catch (e) {
       const msg = e instanceof SyntaxError ? e.message : String(e);
       throw new Error(`Invalid JSON in deck.json: ${msg}`);
@@ -229,7 +229,7 @@ export class FsAccessAdapter implements FileSystemAdapter {
         const currentContent = await file.text();
         const currentHash = fnv1aHash(currentContent);
         if (currentHash !== this._lastSaveHash) {
-          const diskDeck = JSON.parse(currentContent) as Deck;
+          const diskDeck = normalizeDeckLegacyFields(JSON.parse(currentContent));
           return diskDeck;
         }
       } catch {

@@ -394,12 +394,35 @@ export interface DeckMeta {
 }
 
 export interface Deck {
-  deckode: string;
+  version: string;
   meta: DeckMeta;
   theme?: DeckTheme;
   pageNumbers?: PageNumberConfig;
   components?: Record<string, SharedComponent>;
   slides: Slide[];
+}
+
+/**
+ * Accept decks loaded from disk or the network under either the canonical
+ * `version` field (TEKKAL era) or the legacy `deckode` field (pre-rebrand).
+ * Returns the input with `version` guaranteed present and the legacy field
+ * stripped. Writers always emit the canonical shape so over time the legacy
+ * field disappears from saved files.
+ */
+export function normalizeDeckLegacyFields(raw: unknown): Deck {
+  if (!raw || typeof raw !== "object") {
+    throw new Error("Deck JSON root must be an object");
+  }
+  const r = raw as Record<string, unknown>;
+  if (typeof r.version !== "string") {
+    if (typeof r.deckode === "string") {
+      r.version = r.deckode;
+    } else {
+      throw new Error("Deck JSON missing version field (neither 'version' nor legacy 'deckode' present)");
+    }
+  }
+  delete r.deckode;
+  return r as unknown as Deck;
 }
 
 // ----- Virtual canvas constants -----

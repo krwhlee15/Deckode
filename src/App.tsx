@@ -14,7 +14,7 @@ import { parseGitHubParam, buildGitHubRawBase, fetchGitHubDeck } from "@/utils/g
 import { restoreHandle } from "@/utils/handleStore";
 import type { FileSystemAdapter } from "@/adapters/types";
 import { FsAccessAdapter } from "@/adapters/fsAccess";
-import type { Deck } from "@/types/deck";
+import { normalizeDeckLegacyFields, type Deck } from "@/types/deck";
 import { assert } from "@/utils/assert";
 import { fnv1aHash } from "@/utils/hash";
 
@@ -83,7 +83,7 @@ export function App() {
     if (params.has("demo")) {
       setLoading(true);
       import("../templates/default/deck.json").then((mod) => {
-        const rawDeck = mod.default as unknown as Deck;
+        const rawDeck = normalizeDeckLegacyFields(mod.default);
         const deck = resolveSlideRefsFromMap(rawDeck, "../templates/default/", demoSlideFiles);
         const assetBaseUrl = import.meta.env.BASE_URL + "demo-assets";
         const readOnlyAdapter = ReadOnlyAdapter.fromBundled(deck, assetBaseUrl);

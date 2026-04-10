@@ -1,14 +1,18 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://deckode.dev/schema/deck.json",
-  "title": "Deckode Deck",
-  "description": "JSON schema for Deckode slide decks",
+  "$id": "https://tekkal.dev/schema/deck.json",
+  "title": "TEKKAL Deck",
+  "description": "JSON schema for TEKKAL slide decks",
   "type": "object",
-  "required": ["deckode", "meta", "slides"],
+  "required": ["version", "meta", "slides"],
   "properties": {
+    "version": {
+      "type": "string",
+      "description": "Schema version. The legacy 'deckode' field is still accepted by loaders for back-compat but writers emit 'version'."
+    },
     "deckode": {
       "type": "string",
-      "description": "Schema version"
+      "description": "Legacy schema version field (pre-rebrand). Loaders accept either 'version' or 'deckode'."
     },
     "meta": {
       "type": "object",

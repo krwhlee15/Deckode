@@ -45,7 +45,7 @@ export const LIGHT_THEME: DeckTheme = {
 
 export function generateBlankDeck(title?: string): Deck {
   return {
-    deckode: "0.1.0",
+    version: "0.1.0",
     meta: {
       title: title || "Untitled Presentation",
       aspectRatio: "16:9",
@@ -116,7 +116,7 @@ export function generateWizardDeck(config: WizardConfig): Deck {
   });
 
   return {
-    deckode: "0.1.0",
+    version: "0.1.0",
     meta: {
       title: config.title,
       author: config.author || undefined,

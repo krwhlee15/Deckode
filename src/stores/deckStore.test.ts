@@ -29,7 +29,7 @@ function makeDeck(slideCount = 3): Deck {
     makeSlide(`s${i}`, [makeElement(`e${i}-0`)])
   );
   return {
-    deckode: "0.1.0",
+    version: "0.1.0",
     meta: { title: "Test Deck", aspectRatio: "16:9" },
     slides,
   };

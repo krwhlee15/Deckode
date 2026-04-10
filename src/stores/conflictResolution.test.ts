@@ -22,7 +22,7 @@ function slide(id: string, elements: SlideElement[] = [el(`${id}-e0`)]): Slide {
 }
 
 function deck(slides: Slide[] = [slide("s0"), slide("s1")]): Deck {
-  return { deckode: "0.1.0", meta: { title: "Test", aspectRatio: "16:9" }, slides };
+  return { version: "0.1.0", meta: { title: "Test", aspectRatio: "16:9" }, slides };
 }
 
 // -- Mock adapter --

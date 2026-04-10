@@ -1,4 +1,4 @@
-import type { Deck } from "@/types/deck";
+import { normalizeDeckLegacyFields, type Deck } from "@/types/deck";
 import { assert } from "@/utils/assert";
 
 export interface GitHubSource {
@@ -108,7 +108,7 @@ export async function fetchGitHubDeck(source: GitHubSource): Promise<Deck> {
   const res = await fetch(url, { cache: "no-store" });
   assert(res.ok, `Failed to fetch deck.json from GitHub: ${res.status} ${res.statusText} (${url})`);
 
-  const deck = (await res.json()) as Deck;
+  const deck = normalizeDeckLegacyFields(await res.json());
   assert(deck.slides !== undefined && Array.isArray(deck.slides), "Fetched JSON is not a valid Deck (missing slides array)");
 
   // Resolve $ref entries by fetching referenced files from the same repo

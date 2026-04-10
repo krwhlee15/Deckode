@@ -1,4 +1,4 @@
-import type { Deck } from "@/types/deck";
+import { normalizeDeckLegacyFields, type Deck } from "@/types/deck";
 import type { ProjectInfo } from "@/adapters/types";
 import type { NewProjectConfig } from "@/utils/projectTemplates";
 import { assert } from "@/utils/assert";
@@ -40,7 +40,8 @@ export async function loadDeckFromDisk(project: string): Promise<Deck | null> {
     const body = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
     throw new Error(body.error ?? `Failed to load deck: ${res.status}`);
   }
-  return res.json() as Promise<Deck>;
+  const raw = await res.json();
+  return normalizeDeckLegacyFields(raw);
 }
 
 /**

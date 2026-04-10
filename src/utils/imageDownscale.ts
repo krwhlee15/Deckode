@@ -6,6 +6,11 @@
  * cost 5-10x with negligible accuracy loss for slide-context understanding.
  *
  * Output is base64 (no data URL prefix), ready for inlineData.data.
+ *
+ * Two-tier cache:
+ *   1. In-memory Map for the current page session (instant lookups).
+ *   2. IndexedDB for cross-session persistence (survives reload).
+ * Cache misses fall through to a fresh canvas downscale.
  */
 
 export interface DownscaleOptions {
@@ -25,15 +30,71 @@ export interface DownscaledImage {
 const DEFAULT_LONG_EDGE = 1280;
 const DEFAULT_QUALITY = 0.85;
 
-const cache = new Map<string, Promise<DownscaledImage>>();
+const memoryCache = new Map<string, Promise<DownscaledImage>>();
+
+const DB_NAME = "deckode-image-cache";
+const DB_VERSION = 1;
+const STORE_NAME = "downscaled";
 
 function cacheKey(src: string, opts: Required<DownscaleOptions>): string {
   return `${src}|${opts.maxLongEdge}|${opts.format}|${opts.quality}`;
 }
 
+let dbPromise: Promise<IDBDatabase> | null = null;
+function openDb(): Promise<IDBDatabase> {
+  if (dbPromise) return dbPromise;
+  dbPromise = new Promise((resolve, reject) => {
+    if (typeof indexedDB === "undefined") {
+      reject(new Error("IndexedDB unavailable"));
+      return;
+    }
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME);
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error ?? new Error("IndexedDB open failed"));
+  });
+  return dbPromise;
+}
+
+async function idbGet(key: string): Promise<DownscaledImage | null> {
+  try {
+    const db = await openDb();
+    return await new Promise<DownscaledImage | null>((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, "readonly");
+      const store = tx.objectStore(STORE_NAME);
+      const req = store.get(key);
+      req.onsuccess = () => resolve((req.result as DownscaledImage | undefined) ?? null);
+      req.onerror = () => reject(req.error);
+    });
+  } catch {
+    return null;
+  }
+}
+
+async function idbPut(key: string, value: DownscaledImage): Promise<void> {
+  try {
+    const db = await openDb();
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, "readwrite");
+      const store = tx.objectStore(STORE_NAME);
+      const req = store.put(value, key);
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    });
+  } catch {
+    // Persistence failure is non-fatal — memory cache still works.
+  }
+}
+
 /**
  * Downscale an image to a target long-edge size and encode as base64.
- * Results are cached in memory keyed by src + options for the lifetime of the page.
+ * Results are cached in memory and persisted to IndexedDB so subsequent
+ * calls (even after reload) skip the canvas work entirely.
  */
 export function downscaleImage(
   src: string,
@@ -45,12 +106,18 @@ export function downscaleImage(
     quality: options.quality ?? DEFAULT_QUALITY,
   };
   const key = cacheKey(src, opts);
-  const cached = cache.get(key);
+  const cached = memoryCache.get(key);
   if (cached) return cached;
 
-  const promise = runDownscale(src, opts);
-  cache.set(key, promise);
-  promise.catch(() => cache.delete(key));
+  const promise = (async () => {
+    const persisted = await idbGet(key);
+    if (persisted) return persisted;
+    const fresh = await runDownscale(src, opts);
+    void idbPut(key, fresh);
+    return fresh;
+  })();
+  memoryCache.set(key, promise);
+  promise.catch(() => memoryCache.delete(key));
   return promise;
 }
 
@@ -117,5 +184,21 @@ function blobToBase64(blob: Blob): Promise<string> {
 
 /** Clear the in-memory cache. Useful in tests or when memory pressure matters. */
 export function clearDownscaleCache(): void {
-  cache.clear();
+  memoryCache.clear();
+}
+
+/** Clear both memory and IndexedDB caches. Useful for explicit "reset" actions. */
+export async function clearDownscaleCacheAll(): Promise<void> {
+  memoryCache.clear();
+  try {
+    const db = await openDb();
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, "readwrite");
+      const req = tx.objectStore(STORE_NAME).clear();
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    });
+  } catch {
+    // Best-effort
+  }
 }

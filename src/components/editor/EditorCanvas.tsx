@@ -11,6 +11,7 @@ import { assert } from "@/utils/assert";
 import { ComponentEditOverlay } from "./ComponentEditOverlay";
 import { useGitDiff } from "@/contexts/GitDiffContext";
 import { restoreElementAssets, restoreSlideAssets } from "@/utils/crossInstanceAssets";
+import { scheduleImageCaption } from "@/ai/imageCaption";
 
 function fileToDataUrl(file: File | Blob): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -275,6 +276,7 @@ export const EditorCanvas = memo(function EditorCanvas({ showDiff = false }: { s
           };
           addElement(slideId, element);
           selectElement(id);
+          scheduleImageCaption(slideId, id);
         } else {
           const img = new Image();
           img.onload = () => {
@@ -298,6 +300,7 @@ export const EditorCanvas = memo(function EditorCanvas({ showDiff = false }: { s
             };
             useDeckStore.getState().addElement(slideId, element);
             useDeckStore.getState().selectElement(id);
+            scheduleImageCaption(slideId, id);
           };
           img.src = probeUrl;
         }
@@ -651,6 +654,7 @@ export const EditorCanvas = memo(function EditorCanvas({ showDiff = false }: { s
         size: { w: 400, h: 300 },
       };
       addElement(slideId, element);
+      scheduleImageCaption(slideId, id);
       selectElement(id);
     } else if (isVideo) {
       const probeUrl = URL.createObjectURL(file);
@@ -704,6 +708,7 @@ export const EditorCanvas = memo(function EditorCanvas({ showDiff = false }: { s
           size: { w, h },
         };
         useDeckStore.getState().addElement(slideId, element);
+        scheduleImageCaption(slideId, id);
         useDeckStore.getState().selectElement(id);
       };
       img.src = probeUrl;

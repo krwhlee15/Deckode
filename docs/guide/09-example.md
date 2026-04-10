@@ -2,9 +2,9 @@
 
 ```json
 {
-  "deckode": "0.1.0",
+  "version": "0.1.0",
   "meta": {
-    "title": "Introduction to Deckode",
+    "title": "Introduction to TEKKAL",
     "author": "Son",
     "aspectRatio": "16:9"
   },
@@ -20,7 +20,7 @@
         {
           "id": "e1",
           "type": "text",
-          "content": "# Deckode\n\nSlides as Code, Powered by AI",
+          "content": "# TEKKAL\n\nSlides as Code, Powered by AI",
           "position": { "x": 180, "y": 160 },
           "size": { "w": 600, "h": 220 },
           "style": { "fontSize": 48, "color": "#f8fafc", "textAlign": "center" }
@@ -71,7 +71,7 @@
         {
           "id": "e4",
           "type": "text",
-          "content": "### Deckode\n\nJSON + Visual Editor\n+ AI Agent\n= Full Control",
+          "content": "### TEKKAL\n\nJSON + Visual Editor\n+ AI Agent\n= Full Control",
           "position": { "x": 620, "y": 150 },
           "size": { "w": 280, "h": 240 },
           "style": { "fontSize": 20, "color": "#3b82f6", "textAlign": "center", "verticalAlign": "middle" }

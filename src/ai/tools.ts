@@ -147,7 +147,7 @@ export const tekkalTools: TekkalTool[] = [
   {
     name: "read_guide",
     description:
-      "Read a specific section of the Deckode guide documentation. The guide index is already in your system prompt — use this to fetch detailed specs for element types, animations, theme, etc. Available sections: 01-overview, 02-slide-splitting, 03a-schema-deck, 03b-schema-elements, 04a-elem-text-code, 04b-elem-media, 04c-elem-shape, 04d-elem-tikz, 04e-elem-diagrams, 04f-elem-table-mermaid, 04g-elem-scene3d, 04h-elem-scene3d-examples, 05-animations, 06-theme, 07-slide-features, 08a-guidelines, 08b-style-preferences, 09-example",
+      "Read a specific section of the TEKKAL guide documentation. The guide index is already in your system prompt — use this to fetch detailed specs for element types, animations, theme, etc. Available sections: 01-overview, 02-slide-splitting, 03a-schema-deck, 03b-schema-elements, 04a-elem-text-code, 04b-elem-media, 04c-elem-shape, 04d-elem-tikz, 04e-elem-diagrams, 04f-elem-table-mermaid, 04g-elem-scene3d, 04h-elem-scene3d-examples, 05-animations, 06-theme, 07-slide-features, 08a-guidelines, 08b-style-preferences, 09-example",
     parameters: {
       type: SchemaType.OBJECT,
       properties: {

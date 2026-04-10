@@ -1,7 +1,7 @@
 // Bundled guide files — Vite ?raw imports for build-time inclusion.
 // Shared between fsAccess adapter (project scaffolding) and AI pipeline (read_guide tool).
 
-import guideIndex from "../../docs/deckode-guide.md?raw";
+import guideIndex from "../../docs/tekkal-guide.md?raw";
 import guide01 from "../../docs/guide/01-overview.md?raw";
 import guide02 from "../../docs/guide/02-slide-splitting.md?raw";
 import guide03a from "../../docs/guide/03a-schema-deck.md?raw";

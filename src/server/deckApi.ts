@@ -1176,9 +1176,9 @@ async function compileTikz(
 // -- AI Tools Manifest --
 
 const AI_TOOLS_MANIFEST = {
-  name: "deckode",
-  description: "AI tools for creating and modifying Deckode slide decks. All endpoints require ?project=name parameter.",
-  guide: "/docs/deckode-guide.md",
+  name: "tekkal",
+  description: "AI tools for creating and modifying TEKKAL slide decks. All endpoints require ?project=name parameter.",
+  guide: "/docs/tekkal-guide.md",
   schema: "/src/schema/deck.schema.json",
   tools: [
     {

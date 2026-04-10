@@ -4,7 +4,7 @@
 
 ```json
 {
-  "deckode": "0.1.0",
+  "version": "0.1.0",
   "meta": {
     "title": "Presentation Title",
     "author": "Author Name",
@@ -35,7 +35,7 @@
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `deckode` | string | yes | Schema version. Use `"0.1.0"` |
+| `version` | string | yes | Schema version. Use `"0.1.0"`. The legacy field name `deckode` is still accepted by loaders for back-compat but writers should emit `version`. |
 | `meta.title` | string | yes | Presentation title |
 | `meta.author` | string | no | Author name |
 | `meta.aspectRatio` | `"16:9"` \| `"4:3"` | yes | Slide aspect ratio |

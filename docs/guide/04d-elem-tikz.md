@@ -71,7 +71,7 @@ Uses `@drgrice1/tikzjax` v1.0.0-beta24 (WASM e-TeX + PGF SVG driver). **NOT** fu
 
 **Available TikZ libraries** (bundled): `3d`, `angles`, `animations`, `arrows`, `arrows.meta`, `automata`, `babel`, `backgrounds`, `bending`, `calc`, `calendar`, `cd`, `chains`, `circuits.*`, `datavisualization.*`, `decorations.*`, `er`, `fadings`, `fit`, `fixedpointarithmetic`, `folding`, `fpu`, `graphs`, `graphs.standard`, `intersections`, `lindenmayersystems`, `math`, `matrix`, `mindmap`, `patterns`, `patterns.meta`, `perspective`, `petri`, `plothandlers`, `plotmarks`, `positioning`, `quotes`, `rdf`, `scopes`, `shadings`, `shadows`, `shapes.*`, `snakes`, `spy`, `svg.path`, `through`, `trees`, `turtle`, `views`
 
-**CRITICAL**: Deckode passes `addToPreamble` but NOT `texPackages`/`tikzLibraries` dataset attrs — `\usepackage` and `\usetikzlibrary` in the preamble field may fail for some packages. Many work anyway since `.code.tex` files are bundled; test case-by-case.
+**CRITICAL**: TEKKAL passes `addToPreamble` but NOT `texPackages`/`tikzLibraries` dataset attrs — `\usepackage` and `\usetikzlibrary` in the preamble field may fail for some packages. Many work anyway since `.code.tex` files are bundled; test case-by-case.
 
 ### Known limitations
 

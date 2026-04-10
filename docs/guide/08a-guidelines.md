@@ -19,7 +19,7 @@ These are critical mistakes that break rendering. **Read this section before cre
 
 ## Creating a New Deck
 
-1. Start with the top-level structure including `deckode` version and `meta`
+1. Start with the top-level structure including `version` and `meta`
 2. Create slides with unique sequential IDs (`s1`, `s2`, ...)
 3. Within each slide, create elements with unique sequential IDs (`e1`, `e2`, ...)
 4. Position elements thoughtfully — avoid overlaps unless intentional
@@ -81,7 +81,7 @@ Reading deck state costs tokens. Always prefer the narrowest read that answers y
 
 ---
 
-> **Scope note** — everything below this line assumes access to the Deckode in-app AI pipeline (the chat panel inside the editor), which exposes ~50 specialized tools. If you are an external AI agent (Claude Code, a generic LLM editing `deck.json` via file-system Read/Edit, etc.), these tools do **not** exist in your environment. Skip to the "AI Constraints" section below and edit `deck.json` directly. The tool names in the rest of this document are reference material for in-app agents only.
+> **Scope note** — everything below this line assumes access to the TEKKAL in-app AI pipeline (the chat panel inside the editor), which exposes ~50 specialized tools. If you are an external AI agent (Claude Code, a generic LLM editing `deck.json` via file-system Read/Edit, etc.), these tools do **not** exist in your environment. Skip to the "AI Constraints" section below and edit `deck.json` directly. The tool names in the rest of this document are reference material for in-app agents only.
 
 ---
 
@@ -105,7 +105,7 @@ Reading deck state costs tokens. Always prefer the narrowest read that answers y
 
 ## Tool Catalog by Task
 
-> **Scope**: This entire section describes tools available only to the Deckode in-app AI pipeline. External agents editing `deck.json` via file-system tools should skip it — none of these tools exist in your environment. Use the schema sections (`03a`, `03b`, `04*`) and the "AI Constraints" rules below to edit the JSON directly.
+> **Scope**: This entire section describes tools available only to the TEKKAL in-app AI pipeline. External agents editing `deck.json` via file-system tools should skip it — none of these tools exist in your environment. Use the schema sections (`03a`, `03b`, `04*`) and the "AI Constraints" rules below to edit the JSON directly.
 
 Pick the most specific tool for the job. Specialized tools have better validation, smaller token footprints, and avoid the common failure modes that come with free-form edits.
 
@@ -187,7 +187,7 @@ After a non-trivial edit, run at least one of these before reporting success:
 
 ## Tool Selection Decision Tree
 
-> **Scope**: Deckode in-app AI pipeline only. External agents editing `deck.json` directly should skip this subsection — you do not have a tool layer to choose from. Edit the JSON per the schema rules in `03*`/`04*` and the constraints below.
+> **Scope**: TEKKAL in-app AI pipeline only. External agents editing `deck.json` directly should skip this subsection — you do not have a tool layer to choose from. Edit the JSON per the schema rules in `03*`/`04*` and the constraints below.
 
 When a user asks for an edit, pick tools in this order:
 
@@ -207,7 +207,7 @@ When a user asks for an edit, pick tools in this order:
 - **Adding an image without alt text.** The deck summary conveys image content to downstream agents via `alt`/`caption`/`description`/`aiSummary`. An image with none of those is invisible to upstream planning and will be treated as an opaque blob by every future read.
 - **Forgetting the blast radius of a change.** Before a risky multi-step edit, make sure you can recover: note the current state, or in an in-app environment take a snapshot.
 
-**In-app only** (Deckode chat panel agents with the tool catalog):
+**In-app only** (TEKKAL chat panel agents with the tool catalog):
 
 - **Manually computing alignment or distribution coordinates** when `align_elements` / `distribute_elements` exist. The tool computes coordinates from the selection's bounding box — free correctness.
 - **Updating elements one by one when a deck-wide operation exists.** Use `apply_style_to_all` instead of iterating `update_element`.

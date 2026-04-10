@@ -1,4 +1,4 @@
-# Deckode Implementation Plan
+# TEKKAL Implementation Plan
 
 ## Mission & Problem
 
@@ -14,7 +14,7 @@
 
 ## Overview
 
-Deckode is a local-first, AI-agent-driven slide platform. The core idea: slides are a JSON scene graph (`deck.json`), rendered by React components, and editable via both a visual drag-and-drop editor and a code editor. An AI agent can generate and modify `deck.json` directly.
+TEKKAL is a local-first, AI-agent-driven slide platform. The core idea: slides are a JSON scene graph (`deck.json`), rendered by React components, and editable via both a visual drag-and-drop editor and a code editor. An AI agent can generate and modify `deck.json` directly.
 
 ---
 
@@ -188,7 +188,7 @@ Run `npm run dev`, see a rendered slide from `deck.json`.
   - [X] Laser pointer overlay on presentation slide (toggle with L key, synced via BroadcastChannel)
 - [X] PDF export via browser print API (window.print() with @media print CSS, no server dependency)
 - [X] PPTX export (client-side via pptxgenjs, no server dependency)
-- [ ] CLI: `npx deckode dev` (local development only)
+- [ ] CLI: `npx tekkal dev` (local development only)
 
 ---
 
@@ -246,10 +246,10 @@ Run `npm run dev`, see a rendered slide from `deck.json`.
 ### Track A: External AI Tools (primary)
 
 - [X] Define a "tool" interface for AI: `createDeck`, `addSlide`, `updateElement`, `deleteElement`
-- [X] JSON Schema serves as the contract between AI and Deckode
+- [X] JSON Schema serves as the contract between AI and TEKKAL
 - [X] Validate AI output against schema before applying
-- [ ] MCP server: expose Deckode tools via Model Context Protocol so AI agents (Claude Desktop, etc.) can manipulate `deck.json` directly
-- [X] Comprehensive `deckode-guide.md`: full specification with examples for every element type, animation, and layout
+- [ ] MCP server: expose TEKKAL tools via Model Context Protocol so AI agents (Claude Desktop, etc.) can manipulate `deck.json` directly
+- [X] Comprehensive `tekkal-guide.md`: full specification with examples for every element type, animation, and layout
 
 ### Track B: In-App AI Chat — ON HOLD
 
@@ -263,7 +263,7 @@ Run `npm run dev`, see a rendered slide from `deck.json`.
 ### Key Decisions
 
 - AI integration is through `deck.json` manipulation. The AI does not need to know about React components or internal rendering. It only needs to produce valid `deck.json`.
-- See `docs/deckode-guide.md` for the full AI-facing specification.
+- See `docs/tekkal-guide.md` for the full AI-facing specification.
 - **External tools are first-class citizens**: Claude Code, Cursor, or any tool that reads the guide and schema can generate valid decks without any integration work.
 
 ---
@@ -295,4 +295,4 @@ Items to discuss or explore. Not yet committed to any phase.
 | `src/components/editor/PropertyPanel.tsx`   | Selected element properties        |
 | `src/components/editor/SlideList.tsx`       | Sidebar slide thumbnails           |
 | `src/components/editor/CodePanel.tsx`       | Monaco JSON editor                 |
-| `docs/deckode-guide.md`                    | AI-facing deck.json specification  |
+| `docs/tekkal-guide.md`                    | AI-facing deck.json specification  |

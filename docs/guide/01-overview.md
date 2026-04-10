@@ -1,6 +1,6 @@
 # Project Structure
 
-A Deckode project is a folder with this layout:
+A TEKKAL project is a folder with this layout:
 
 ```
 my-project/
@@ -19,7 +19,7 @@ my-project/
   assets/              # Images, videos, and other media (created on demand)
   components/          # Custom React components (optional, dev mode only)
   docs/
-    deckode-guide.md   # Navigation index
+    tekkal-guide.md    # Navigation index
     guide/             # Detailed spec files (split by section)
 ```
 
@@ -27,7 +27,7 @@ Your primary task is to read and write `deck.json`. Assets go in `assets/` with 
 
 # Core Concept
 
-A Deckode presentation is a single `deck.json` file (with optional `$ref` splits). It is a JSON scene graph: a tree of slides, each containing positioned elements. You produce this JSON. Deckode renders it.
+A TEKKAL presentation is a single `deck.json` file (with optional `$ref` splits). It is a JSON scene graph: a tree of slides, each containing positioned elements. You produce this JSON. TEKKAL renders it.
 
 
 # Coordinate System
@@ -37,9 +37,9 @@ A Deckode presentation is a single `deck.json` file (with optional `$ref` splits
 - All `position` and `size` values use this virtual coordinate space
 - The renderer scales the virtual canvas to fit the actual viewport
 
-# How the Deckode In-App AI Pipeline Sees Your Deck
+# How the TEKKAL In-App AI Pipeline Sees Your Deck
 
-> **Scope**: This section describes the context-assembly mechanism used by the Deckode in-app AI pipeline (the chat panel inside the editor). If you are an external AI agent (Claude Code, etc.) reading `deck.json` via file-system tools, none of this applies — you receive the raw JSON and there is no sliding window, no multimodal attach, no background captioning. The section is kept here as reference material for in-app agents and for developers working on the pipeline.
+> **Scope**: This section describes the context-assembly mechanism used by the TEKKAL in-app AI pipeline (the chat panel inside the editor). If you are an external AI agent (Claude Code, etc.) reading `deck.json` via file-system tools, none of this applies — you receive the raw JSON and there is no sliding window, no multimodal attach, no background captioning. The section is kept here as reference material for in-app agents and for developers working on the pipeline.
 
 The in-app pipeline does not pass the full `deck.json` to every model call. It sees a compressed representation that grows richer on demand:
 

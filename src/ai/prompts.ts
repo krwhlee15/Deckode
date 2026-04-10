@@ -115,7 +115,7 @@ export function buildContextSection(ctx: PromptContext | undefined, forPlanner =
 }
 
 // Layer 1: Role definition
-// Layer 2: Guide index (deckode-guide.md) — lightweight for planner/reviewer/writer
+// Layer 2: Guide index (tekkal-guide.md) — lightweight for planner/reviewer/writer
 // Layer 3: Current state
 // Layer 4: Design guidelines + style reference (from guide files)
 // Layer 5: Style context (for notes agent)

@@ -8,7 +8,7 @@ import { fnv1aHash } from "@/utils/hash";
 
 // Bundled template data for prod/FS Access mode (no server available)
 import exampleDeck from "../../templates/default/deck.json";
-import aiGuideText from "../../docs/deckode-guide.md?raw";
+import aiGuideText from "../../docs/tekkal-guide.md?raw";
 import guide01 from "../../docs/guide/01-overview.md?raw";
 import guide02 from "../../docs/guide/02-slide-splitting.md?raw";
 import guide03a from "../../docs/guide/03a-schema-deck.md?raw";
@@ -161,7 +161,7 @@ export class FsAccessAdapter implements FileSystemAdapter {
 
     // Write docs/
     const docsDir = await projectDir.getDirectoryHandle("docs", { create: true });
-    await writeTextFile(docsDir, "deckode-guide.md", aiGuideText);
+    await writeTextFile(docsDir, "tekkal-guide.md", aiGuideText);
     const guideDir = await docsDir.getDirectoryHandle("guide", { create: true });
     for (const [name, content] of Object.entries(BUNDLED_GUIDE_FILES)) {
       await writeTextFile(guideDir, name, content);

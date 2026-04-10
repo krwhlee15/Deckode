@@ -79,7 +79,7 @@ export function parseGitHubUrl(input: string): GitHubSource | null {
 }
 
 /**
- * Builds a Deckode URL from a GitHubSource.
+ * Builds a TEKKAL URL from a GitHubSource.
  * Returns both editor and presentation URLs.
  */
 export function buildTekkalUrls(

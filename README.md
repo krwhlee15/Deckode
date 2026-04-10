@@ -1,14 +1,14 @@
-# Deckode
+# TEKKAL
 
-**Live Demo:** https://hyoungseo.com/deckode/ie5374/?demo
+**Live Demo:** https://tekkal.dev
 
 Local-first, AI-agent-driven slide platform. Visual editor backed by a JSON scene graph, where every drag-and-drop action maps to structured code.
 
 ## Quick Start
 
 ```bash
-git clone <repo-url> deckode
-cd deckode
+git clone <repo-url> tekkal
+cd tekkal
 npm install
 ```
 
@@ -31,7 +31,7 @@ Opens at `http://localhost:3000`. In this mode there is no backend — the app u
 ## Project Structure
 
 ```
-deckode/
+tekkal/
 ├── src/
 │   ├── adapters/          # File-system adapters (Vite API / FS Access API)
 │   ├── components/
@@ -48,7 +48,7 @@ deckode/
 │   └── utils/             # Utilities (TikZJax, diff, API helpers)
 ├── docs/
 │   ├── implementation-plan.md
-│   └── deckode-guide.md   # Specification for AI agents creating decks
+│   └── tekkal-guide.md    # Specification for AI agents creating decks
 ├── templates/             # Built-in project templates
 └── public/
     └── tikzjax/           # WASM-based TeX engine for client-side TikZ
@@ -56,11 +56,11 @@ deckode/
 
 ## Deck Format
 
-Slides are stored as `deck.json` — a JSON scene graph. See [Deckode Guide](docs/deckode-guide.md) for the full specification.
+Slides are stored as `deck.json` — a JSON scene graph. See [TEKKAL Guide](docs/tekkal-guide.md) for the full specification.
 
 ```jsonc
 {
-  "deckode": "0.1.0",
+  "version": "0.1.0",
   "meta": { "title": "My Talk", "aspectRatio": "16:9" },
   "slides": [
     {
@@ -70,7 +70,7 @@ Slides are stored as `deck.json` — a JSON scene graph. See [Deckode Guide](doc
         {
           "id": "e1",
           "type": "text",
-          "content": "# Hello **Deckode**",
+          "content": "# Hello **TEKKAL**",
           "position": { "x": 120, "y": 280 },
           "size": { "w": 720, "h": 120 }
         }

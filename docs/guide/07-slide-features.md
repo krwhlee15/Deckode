@@ -61,7 +61,7 @@ Comments are useful for personal reminders, draft notes, or temporarily hiding c
 
 # Layout Templates
 
-Deckode includes built-in layout templates that provide pre-positioned elements as a starting point for slides. Set the `layout` field on a slide to use one. Elements from the template are merged into the slide; you can override them or add more.
+TEKKAL includes built-in layout templates that provide pre-positioned elements as a starting point for slides. Set the `layout` field on a slide to use one. Elements from the template are merged into the slide; you can override them or add more.
 
 | Layout Name | Description |
 |-------------|-------------|
@@ -78,7 +78,7 @@ Deckode includes built-in layout templates that provide pre-positioned elements 
 
 # Cross-Instance Copy & Paste
 
-When running multiple Deckode editor instances (different projects in separate browser tabs), slides and elements can be copied and pasted between them:
+When running multiple TEKKAL editor instances (different projects in separate browser tabs), slides and elements can be copied and pasted between them:
 
 - **Elements**: Select elements on the canvas, press **Ctrl+C** to copy. Switch to another instance and press **Ctrl+V** to paste. Image and video assets are automatically fetched from the source instance and re-uploaded to the target project.
 - **Slides**: Click a slide thumbnail (no elements selected) and press **Ctrl+C** to copy the current slide. Multi-select slides with **Ctrl+Click** or **Shift+Click**, then **Ctrl+C** to copy all selected slides. Paste with **Ctrl+V**.

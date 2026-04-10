@@ -1,6 +1,6 @@
-# Deckode Guide
+# TEKKAL Guide
 
-You are creating slides for Deckode, a local-first, JSON-based slide platform. This is the navigation index for the complete specification. Read the relevant section files below as needed.
+You are creating slides for TEKKAL, a local-first, JSON-based slide platform. This is the navigation index for the complete specification. Read the relevant section files below as needed.
 
 > **IMPORTANT**: When a new deck is first created or confirmed, you **must** ask the user about their style preferences (theme, animations, notes tone, highlight boxes). See [Style Preferences](./guide/08b-style-preferences.md). For existing decks, infer from existing slides.
 

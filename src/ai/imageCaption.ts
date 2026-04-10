@@ -19,8 +19,12 @@ import type { ImageElement } from "@/types/deck";
 
 const captionsInFlight = new Set<string>();
 const captionsDone = new Set<string>();
+const captionsFailed = new Set<string>(); // Permanently failed srcs — don't retry
 
 const CAPTION_PROMPT = `Describe this image in one concise sentence (under 25 words) suitable as a slide-context summary for a presentation editor. Focus on what the image depicts, not its style. No leading phrases like "This image shows" — just the description.`;
+
+const MAX_ATTEMPTS = 3;
+const BACKOFF_MS = [1000, 2000, 4000];
 
 /**
  * Schedule a caption generation for an image element. Idempotent: same src
@@ -45,26 +49,16 @@ async function runCaption(slideId: string, elementId: string): Promise<void> {
   if (!img.src) return;
   if (img.aiSummary) return; // Already captioned
   if (captionsDone.has(img.src)) return;
+  if (captionsFailed.has(img.src)) return;
   if (captionsInFlight.has(img.src)) return;
 
   captionsInFlight.add(img.src);
   try {
-    const downscaled = await downscaleImage(img.src, { maxLongEdge: 768 });
-    const response = await callGemini({
-      model: getModelForAgent("planner"),
-      systemInstruction: "You write concise, factual image descriptions for a slide editor. One sentence only.",
-      message: [
-        { text: CAPTION_PROMPT },
-        {
-          inlineData: {
-            mimeType: downscaled.mimeType,
-            data: downscaled.base64,
-          },
-        },
-      ],
-    });
-    const summary = response.text.trim().replace(/^["']|["']$/g, "");
-    if (!summary) return;
+    const summary = await captionWithRetry(img.src);
+    if (!summary) {
+      captionsFailed.add(img.src);
+      return;
+    }
 
     // Re-check the element still exists; it may have been deleted while we waited
     const currentDeck = useDeckStore.getState().deck;
@@ -75,14 +69,72 @@ async function runCaption(slideId: string, elementId: string): Promise<void> {
     useDeckStore.getState().updateElement(slideId, elementId, { aiSummary: summary });
     captionsDone.add(img.src);
   } catch (err) {
-    console.warn(`[imageCaption] failed for ${elementId}:`, err);
+    console.warn(`[imageCaption] permanently failed for ${elementId}:`, err);
+    captionsFailed.add(img.src);
   } finally {
     captionsInFlight.delete(img.src);
   }
+}
+
+/**
+ * Run the caption call with bounded exponential backoff. Downscaling happens
+ * once (it's cached), but the network call can be retried on transient
+ * failures like 429 rate limits or transient 5xx. A permanent failure
+ * (invalid source image, malformed API key) surfaces immediately.
+ */
+async function captionWithRetry(src: string): Promise<string | null> {
+  let downscaled: Awaited<ReturnType<typeof downscaleImage>>;
+  try {
+    downscaled = await downscaleImage(src, { maxLongEdge: 768 });
+  } catch (err) {
+    // Downscaling failure is permanent (bad src, CORS block) — don't retry
+    throw err;
+  }
+
+  let lastError: unknown = null;
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    try {
+      const response = await callGemini({
+        model: getModelForAgent("planner"),
+        systemInstruction: "You write concise, factual image descriptions for a slide editor. One sentence only.",
+        message: [
+          { text: CAPTION_PROMPT },
+          {
+            inlineData: {
+              mimeType: downscaled.mimeType,
+              data: downscaled.base64,
+            },
+          },
+        ],
+      });
+      const summary = response.text.trim().replace(/^["']|["']$/g, "");
+      return summary || null;
+    } catch (err) {
+      lastError = err;
+      if (!isTransientError(err) || attempt === MAX_ATTEMPTS - 1) break;
+      const delay = BACKOFF_MS[attempt] ?? 4000;
+      console.debug(`[imageCaption] retry ${attempt + 1}/${MAX_ATTEMPTS} after ${delay}ms:`, err);
+      await sleep(delay);
+    }
+  }
+  throw lastError;
+}
+
+function isTransientError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  // Gemini SDK surfaces HTTP errors with status codes in the message.
+  // 429 (rate limit), 500/502/503/504 (server errors), and network
+  // failures are all worth retrying. 400/401/403 are permanent.
+  return /\b(429|500|502|503|504)\b|network|fetch|timeout|ECONNRESET|ETIMEDOUT/i.test(msg);
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /** Test/dev helper: clear caption caches. */
 export function clearCaptionCache(): void {
   captionsInFlight.clear();
   captionsDone.clear();
+  captionsFailed.clear();
 }

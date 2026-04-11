@@ -178,9 +178,15 @@ function cleanOrphanRefs(deck: Deck): void {
   }
 }
 
-function assertNoLineRotation(el: { type?: string; rotation?: number }) {
+function assertNoLineRotation(el: { type?: string; shape?: string; rotation?: number }) {
+  // Arrow and line are shape KINDS on a shape element (el.type === "shape",
+  // el.shape === "arrow" | "line"), not top-level element types. The previous
+  // check compared el.type to "line" / "arrow" directly, which never matched
+  // any valid element, so it silently allowed rotation on arrow/line shapes.
+  // The renderer would then assert-fail later because arrow/line rely on
+  // style.waypoints for direction and reject rotation.
   assert(
-    !((el.type === "line" || el.type === "arrow") && el.rotation),
+    !(el.type === "shape" && (el.shape === "line" || el.shape === "arrow") && el.rotation),
     "line/arrow must use waypoints, not rotation",
   );
 }

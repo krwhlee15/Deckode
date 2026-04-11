@@ -93,10 +93,10 @@ export default defineConfig(({ command }) => ({
       // current post-Phase-4 coverage minus a small safety margin so that
       // unrelated refactors do not accidentally trip the gate.
       thresholds: {
-        statements: 45,
-        branches: 45,
-        functions: 38,
-        lines: 45,
+        statements: 48,
+        branches: 48,
+        functions: 40,
+        lines: 50,
       },
     },
   },

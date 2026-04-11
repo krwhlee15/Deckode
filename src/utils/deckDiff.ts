@@ -194,9 +194,16 @@ export function mergeDeck(base: Deck, local: Deck, remote: Deck): MergeResult {
       const remoteStr = remoteEl ? JSON.stringify(remoteEl) : null;
 
       if (!localEl && remoteEl) {
-        // Deleted locally, exists remotely
-        if (baseStr === remoteStr) continue; // local deletion, remote unchanged → accept deletion
-        // Remote modified, local deleted → keep local decision (deletion)
+        // Element absent locally, present remotely
+        if (!baseEl) {
+          // Not in base at all → remote added it → accept
+          mergedElements.push(structuredClone(remoteEl));
+        } else if (baseStr === remoteStr) {
+          // Local deleted, remote unchanged → accept deletion
+          continue;
+        } else {
+          // Local deleted, remote modified → keep local decision (deletion)
+        }
       } else if (localEl && !remoteEl) {
         // Exists locally, deleted remotely
         if (baseStr === localStr) continue; // remote deletion, local unchanged → accept deletion
@@ -213,7 +220,10 @@ export function mergeDeck(base: Deck, local: Deck, remote: Deck): MergeResult {
           // Only local changed → keep local
           mergedElements.push(structuredClone(localEl));
         } else {
-          // Both changed → keep local (tekkal user is actively editing)
+          // Both changed → report conflict; keep local in merged output so the
+          // caller can still show something, but the returned merged is
+          // ultimately nulled out below because conflicts.length > 0.
+          conflicts.push({ slideId, elementId: elId });
           mergedElements.push(structuredClone(localEl));
         }
       }

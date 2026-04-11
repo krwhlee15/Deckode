@@ -86,19 +86,22 @@ describe("mergeDeck - external edit preservation", () => {
     expect(result.conflicts[0]).toEqual({ slideId: "s1", elementId: "e1" });
   });
 
-  it("BUG: externally added element is treated as conflict (should be accepted)", () => {
-    // mergeDeck sees !localEl && remoteEl with baseStr=null !== remoteStr
-    // → misidentifies as "local deleted, remote modified" → conflict
+  it("accepts externally added element", () => {
+    // When remote adds a brand new element that local did not touch, it should
+    // merge cleanly (no conflict). Historically this was misclassified as
+    // "local deleted, remote modified" because the element is absent in base
+    // AND absent in local — the fix explicitly checks !baseEl to distinguish
+    // a true remote add from a local-delete-plus-remote-modify collision.
     const base = makeDeck([makeSlide("s1", [makeElement("e1")])]);
     const local = structuredClone(base);
     const remote = structuredClone(base);
     remote.slides[0]!.elements.push(makeElement("e-new", { content: "Added externally" }));
 
     const result = mergeDeck(base, local, remote);
-    // BUG: should be merged, not conflict
-    expect(result.merged).toBeNull();
-    expect(result.conflicts).toHaveLength(1);
-    expect(result.conflicts[0]!.elementId).toBe("e-new");
+    expect(result.merged).not.toBeNull();
+    expect(result.conflicts).toHaveLength(0);
+    expect(result.merged!.slides[0]!.elements).toHaveLength(2);
+    expect(result.merged!.slides[0]!.elements[1]!.id).toBe("e-new");
   });
 
   it("accepts externally added slide", () => {

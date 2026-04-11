@@ -20,6 +20,18 @@ vi.mock("shiki", () => ({
 // Mock svg2pdf.js — it extends jsPDF prototype
 vi.mock("svg2pdf.js", () => ({}));
 
+// Mock exportUtils.captureVideoFirstFrame — it calls document.createElement("video")
+// which is unavailable in vitest's default "node" environment. The PDF test only
+// needs to verify that the video-placeholder path does not crash; the actual
+// frame-capture logic is browser-only and not meaningfully testable here.
+vi.mock("@/utils/exportUtils", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/utils/exportUtils")>();
+  return {
+    ...actual,
+    captureVideoFirstFrame: vi.fn(async () => null),
+  };
+});
+
 // Now import the module under test (after mocks are set up)
 const { buildNativePdf } = await import("./pdfNativeExport");
 

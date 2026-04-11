@@ -254,6 +254,71 @@ describe("saveToDisk — adversarial edge cases", () => {
 // moveSlide — currentSlideIndex invariant under reorder
 // ─────────────────────────────────────────────────────────────────────
 
+describe("replaceDeck — currentSlideIndex preservation", () => {
+  it("follows the slide the user is viewing when the deck is reordered", () => {
+    useDeckStore.getState().openProject("test", deck([
+      slide("s0"), slide("s1"), slide("s2"),
+    ]));
+    useDeckStore.getState().setCurrentSlide(2); // viewing s2
+
+    // Reorder: [s2, s0, s1] — s2 is now at index 0
+    useDeckStore.getState().replaceDeck({
+      version: "0.1.0",
+      meta: { title: "Test", aspectRatio: "16:9" },
+      slides: [slide("s2"), slide("s0"), slide("s1")],
+    });
+
+    const state = useDeckStore.getState();
+    expect(state.deck!.slides[state.currentSlideIndex]!.id).toBe("s2");
+  });
+
+  it("clamps to the last slide when the current slide is removed", () => {
+    useDeckStore.getState().openProject("test", deck([
+      slide("s0"), slide("s1"), slide("s2"),
+    ]));
+    useDeckStore.getState().setCurrentSlide(2); // viewing s2
+
+    // New deck drops s2
+    useDeckStore.getState().replaceDeck({
+      version: "0.1.0",
+      meta: { title: "Test", aspectRatio: "16:9" },
+      slides: [slide("s0"), slide("s1")],
+    });
+
+    const state = useDeckStore.getState();
+    expect(state.currentSlideIndex).toBe(1);
+    expect(state.deck!.slides[1]!.id).toBe("s1");
+  });
+});
+
+describe("addSlide — currentSlideIndex preservation", () => {
+  it("shifts currentSlideIndex right when a slide is inserted before it", () => {
+    useDeckStore.getState().openProject("test", deck([
+      slide("s0"), slide("s1"), slide("s2"),
+    ]));
+    useDeckStore.getState().setCurrentSlide(2); // viewing s2
+
+    // Insert a new slide after s0 (at index 1)
+    useDeckStore.getState().addSlide(slide("new"), 0);
+
+    const state = useDeckStore.getState();
+    // User should still be viewing s2
+    expect(state.deck!.slides[state.currentSlideIndex]!.id).toBe("s2");
+  });
+
+  it("leaves currentSlideIndex alone when a slide is appended after it", () => {
+    useDeckStore.getState().openProject("test", deck([
+      slide("s0"), slide("s1"),
+    ]));
+    useDeckStore.getState().setCurrentSlide(0); // viewing s0
+
+    useDeckStore.getState().addSlide(slide("new")); // append
+
+    const state = useDeckStore.getState();
+    expect(state.deck!.slides[state.currentSlideIndex]!.id).toBe("s0");
+  });
+});
+
 describe("moveSlide — currentSlideIndex tracking", () => {
   it("follows the slide the user is viewing when that slide is moved", () => {
     useDeckStore.getState().openProject("test", deck([

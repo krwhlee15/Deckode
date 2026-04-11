@@ -276,9 +276,20 @@ export const useDeckStore = create<DeckState>()(
 
         replaceDeck: (deck) =>
           set((state) => {
+            // Preserve the slide the user is viewing when the deck is
+            // restructured (merge results, reorder_slides, restore
+            // snapshots, etc.). If the slide still exists in the new
+            // deck, follow its new index. Otherwise fall back to clamping.
+            const prevSlideId = state.deck?.slides[state.currentSlideIndex]?.id;
             state.deck = deck;
-            // Clamp slide index if slides were removed
-            if (state.currentSlideIndex >= deck.slides.length) {
+            if (prevSlideId) {
+              const newIdx = deck.slides.findIndex((s) => s.id === prevSlideId);
+              if (newIdx !== -1) {
+                state.currentSlideIndex = newIdx;
+              } else if (state.currentSlideIndex >= deck.slides.length) {
+                state.currentSlideIndex = Math.max(0, deck.slides.length - 1);
+              }
+            } else if (state.currentSlideIndex >= deck.slides.length) {
               state.currentSlideIndex = Math.max(0, deck.slides.length - 1);
             }
             saveSlideIndex(state.currentProject, state.currentSlideIndex);
@@ -530,8 +541,17 @@ export const useDeckStore = create<DeckState>()(
           set((state) => {
             assert(state.deck !== null, "No deck loaded");
             const idx = afterIndex ?? state.deck.slides.length;
+            const insertAt = idx + 1;
             slide._ref = `./slides/${slide.id}.json`;
-            state.deck.slides.splice(idx + 1, 0, slide);
+            state.deck.slides.splice(insertAt, 0, slide);
+            // If we inserted at or before the current slide index, shift
+            // the current index right so the user stays on the slide they
+            // were viewing instead of silently jumping to the newly
+            // inserted slide.
+            if (insertAt <= state.currentSlideIndex) {
+              state.currentSlideIndex += 1;
+              saveSlideIndex(state.currentProject, state.currentSlideIndex);
+            }
             state.versionId += 1;
           }),
 

@@ -205,6 +205,34 @@ describe("saveToDisk — adversarial edge cases", () => {
     expect(useDeckStore.getState().isSaving).toBe(false);
   });
 
+  it("does NOT mark the deck as saved when adapter.saveDeck throws", async () => {
+    // Regression: the finally block used to run the "success" branch
+    // whenever conflictDeck was null, which includes the throw path.
+    // That silently advanced savedVersionId and _lastSavedDeck to a
+    // deck that never actually reached disk, so the next conflict
+    // check would mistake the unwritten state as "already saved" and
+    // the user's edits would be lost on the next external edit.
+    const { adapter, setSaveBehavior, saveCallCount } = mockAdapter(deck([slide("s0")]));
+    setStoreAdapter(adapter);
+    useDeckStore.getState().openProject("test", deck([slide("s0")]));
+    useDeckStore.getState().updateElement("s0", "s0-e0", { content: "dirty" });
+
+    const dirtyVersion = useDeckStore.getState().versionId;
+    setSaveBehavior({ type: "error", error: new Error("disk full") });
+
+    await useDeckStore.getState().saveToDisk();
+
+    // The save failed → the deck must still be dirty so the next
+    // save attempt (or a navigation guard) knows there are unsaved edits.
+    expect(useDeckStore.getState().savedVersionId).not.toBe(dirtyVersion);
+
+    // And a subsequent successful save should actually write.
+    setSaveBehavior({ type: "success" });
+    await useDeckStore.getState().saveToDisk();
+    expect(saveCallCount()).toBe(2);
+    expect(useDeckStore.getState().savedVersionId).toBe(dirtyVersion);
+  });
+
   it("eventually succeeds through a single-round conflict retry", async () => {
     const initial = deck([slide("s0", [el("s0-e0")])]);
     const disk = structuredClone(initial);

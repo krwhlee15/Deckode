@@ -368,13 +368,28 @@ export const useDeckStore = create<DeckState>()(
           set((state) => { state.isSaving = true; });
           _activeSave = _adapter.saveDeck(deckToSave);
           let conflictDeck: Deck | null = null;
+          let saveFailed = false;
           try {
             conflictDeck = await _activeSave;
           } catch (err) {
+            // I/O boundary — log and leave the deck dirty. We must NOT
+            // advance savedVersionId or _lastSavedDeck, otherwise the
+            // next external-edit check will mistake this unwritten
+            // state for "already saved" and silently drop local edits
+            // on conflict resolution.
             console.error("[save] failed:", err);
+            saveFailed = true;
           } finally {
             _activeSave = null;
-            if (!conflictDeck) {
+            if (saveFailed) {
+              // Drop any queued pending-save flag: the dirty-state
+              // check below would otherwise spin on the same failing
+              // adapter. The next mutation (which bumps versionId)
+              // will trigger a fresh attempt.
+              _pendingSave = false;
+              set((state) => { state.isSaving = false; });
+            }
+            else if (!conflictDeck) {
               // Only update base if tryMerge hasn't set a newer one during our save
               if (_lastSavedDeck === baseBeforeSave) {
                 _lastSavedDeck = structuredClone(deckToSave);
@@ -385,6 +400,8 @@ export const useDeckStore = create<DeckState>()(
               set((state) => { state.isSaving = false; });
             }
           }
+
+          if (saveFailed) return;
 
           // External modification detected — attempt three-way merge
           if (conflictDeck) {

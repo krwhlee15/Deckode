@@ -57,8 +57,16 @@ interface DeckState {
   savedVersionId: number;
   isSaving: boolean;
   savePaused: boolean;
+  /**
+   * Remote deck content from the most recent unresolvable save
+   * conflict. Set by saveToDisk when the three-way merge fails so
+   * the UI can immediately surface a Reload / Keep mine prompt
+   * without waiting for polling or HMR to re-detect the change.
+   */
+  pendingConflict: Deck | null;
 
   setSavePaused: (paused: boolean) => void;
+  clearPendingConflict: () => void;
   openProject: (project: string, deck: Deck) => void;
   closeProject: () => void;
   loadDeck: (deck: Deck) => void;
@@ -216,9 +224,13 @@ export const useDeckStore = create<DeckState>()(
         savedVersionId: 0,
         isSaving: false,
         savePaused: false,
+        pendingConflict: null,
 
         setSavePaused: (paused) =>
           set((state) => { state.savePaused = paused; }),
+
+        clearPendingConflict: () =>
+          set((state) => { state.pendingConflict = null; }),
 
         openProject: (project, deck) => {
           normalizeSizes(deck);
@@ -239,6 +251,7 @@ export const useDeckStore = create<DeckState>()(
             state.versionId = 0;
             state.savedVersionId = 0;
             state.savePaused = false;
+            state.pendingConflict = null;
           });
         },
 
@@ -254,6 +267,7 @@ export const useDeckStore = create<DeckState>()(
             state.versionId = 0;
             state.savedVersionId = 0;
             state.savePaused = false;
+            state.pendingConflict = null;
           });
         },
 
@@ -277,6 +291,7 @@ export const useDeckStore = create<DeckState>()(
             state.editingComponentId = null;
             state.versionId = 0;
             state.savedVersionId = 0;
+            state.pendingConflict = null;
           });
         },
 
@@ -339,7 +354,10 @@ export const useDeckStore = create<DeckState>()(
             get().replaceDeck(result.merged);
             return "merged";
           }
-          set((state) => { state.savePaused = true; });
+          set((state) => {
+            state.savePaused = true;
+            state.pendingConflict = remoteDeck;
+          });
           return "conflict";
         },
 
@@ -436,8 +454,19 @@ export const useDeckStore = create<DeckState>()(
                 set((state) => { state.deck = result.merged!; });
                 return get().saveToDisk();
               } else {
-                // Unresolvable conflicts — pause and let fs.watch / polling show dialog
-                set((state) => { state.savePaused = true; });
+                // Unresolvable conflicts — pause saves AND park the
+                // remote deck on the store so the App layer can show
+                // a Reload / Keep mine dialog immediately. The old
+                // path waited for fs.watch / polling to re-detect the
+                // change, which is unreliable: vite/HMR mode has no
+                // polling at all, and fs-access polling re-checks
+                // mtime against a cached value that may already match
+                // the conflicting version, leaving the user stuck on
+                // "unsaved" forever with no way to recover.
+                set((state) => {
+                  state.savePaused = true;
+                  state.pendingConflict = conflictDeck!;
+                });
               }
             }
             return;

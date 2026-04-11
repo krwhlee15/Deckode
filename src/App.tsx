@@ -44,6 +44,7 @@ function resolveSlideRefsFromMap(deck: Deck, basePath: string, fileMap: Record<s
 
 export function App() {
   const currentProject = useDeckStore((s) => s.currentProject);
+  const pendingConflict = useDeckStore((s) => s.pendingConflict);
   const [adapter, setAdapter] = useState<FileSystemAdapter | null>(null);
   const [externalChange, setExternalChange] = useState(false);
   const [mergedToast, setMergedToast] = useState(false);
@@ -282,14 +283,26 @@ export function App() {
 
   const handleReloadExternal = useCallback(() => {
     if (!adapter) return;
-    useDeckStore.getState().setSavePaused(false);
-    adapter.loadDeck().then((deck) => {
+    // Prefer the deck the store already has parked from the failed
+    // save merge — saves a round-trip and guarantees we reload the
+    // exact version that caused the conflict (avoids a race where a
+    // third edit lands between the conflict and the reload click).
+    const parked = useDeckStore.getState().pendingConflict;
+    const apply = (deck: Deck) => {
       useDeckStore.getState().loadDeck(deck);
+      useDeckStore.getState().clearPendingConflict();
+      useDeckStore.getState().setSavePaused(false);
       setExternalChange(false);
-    });
+    };
+    if (parked) {
+      apply(parked);
+    } else {
+      adapter.loadDeck().then(apply);
+    }
   }, [adapter]);
 
   const handleKeepMine = useCallback(() => {
+    useDeckStore.getState().clearPendingConflict();
     useDeckStore.getState().setSavePaused(false);
     setExternalChange(false);
     useDeckStore.getState().saveToDisk();
@@ -385,7 +398,7 @@ export function App() {
           External change merged
         </div>
       )}
-      {externalChange && adapter.mode !== "readonly" && (
+      {(externalChange || pendingConflict) && adapter.mode !== "readonly" && (
         <div className="fixed top-0 left-0 right-0 z-[9999] flex items-center justify-center gap-3 px-4 py-2 bg-amber-600 text-white text-sm font-medium shadow-lg">
           <span>deck.json was modified externally</span>
           <button

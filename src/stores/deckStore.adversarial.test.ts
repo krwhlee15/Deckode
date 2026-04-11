@@ -292,6 +292,40 @@ describe("saveToDisk — adversarial edge cases", () => {
     expect(useDeckStore.getState().savePaused).toBe(false);
   });
 
+  it("parks the remote deck on pendingConflict when save merge is unresolvable", async () => {
+    // Regression: previously the unresolvable-conflict path only set
+    // savePaused and relied on fs.watch / polling to re-detect the
+    // change and surface the Reload / Keep mine bar. In vite/HMR
+    // mode there is no polling at all, and fs-access polling
+    // re-checks mtime against a cached value that may already match
+    // the conflicting version, so the user got stuck in "unsaved"
+    // forever with no UI to resolve.
+    const initial = deck([slide("s0", [el("s0-e0", "base")])]);
+    const disk = structuredClone(initial);
+    disk.slides[0]!.elements[0]!.content = "external edit on same element";
+
+    const { adapter, setSaveBehavior } = mockAdapter(initial);
+    setStoreAdapter(adapter);
+    useDeckStore.getState().openProject("test", initial);
+    useDeckStore.getState().updateElement("s0", "s0-e0", { content: "local edit on same element" });
+
+    setSaveBehavior({ type: "conflict", diskDeck: disk });
+    await useDeckStore.getState().saveToDisk();
+
+    expect(useDeckStore.getState().savePaused).toBe(true);
+    // pendingConflict must hold the disk content so the App layer
+    // can show the bar without another loadDeck round-trip.
+    expect(useDeckStore.getState().pendingConflict).not.toBeNull();
+    expect(useDeckStore.getState().pendingConflict!.slides[0]!.elements[0]!.content)
+      .toBe("external edit on same element");
+  });
+
+  it("clearPendingConflict resets the parked deck", () => {
+    useDeckStore.setState({ pendingConflict: deck([slide("s0")]) });
+    useDeckStore.getState().clearPendingConflict();
+    expect(useDeckStore.getState().pendingConflict).toBeNull();
+  });
+
   it("pauses saves when the merged deck is null (unresolvable conflict)", async () => {
     const initial = deck([slide("s0", [el("s0-e0", "base")])]);
     const disk = structuredClone(initial);

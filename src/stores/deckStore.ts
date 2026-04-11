@@ -542,6 +542,17 @@ export const useDeckStore = create<DeckState>()(
             assert(idx !== -1, `Slide ${slideId} not found`);
             state.deck.slides.splice(idx, 1);
             state.selectedSlideIds = state.selectedSlideIds.filter((id) => id !== slideId);
+            // Keep pointing at the same slide the user was viewing.
+            // If we deleted a slide BEFORE the current one, the current index
+            // must shift left by one so it still points at the original slide.
+            // Previously this branch was missing — deleting s1 while viewing
+            // s2 would leave currentSlideIndex at 2 and the user would jump
+            // forward to s3.
+            if (idx < state.currentSlideIndex) {
+              state.currentSlideIndex -= 1;
+            }
+            // Clamp when the current slide itself (or the slide it shifted to)
+            // fell off the end of the shrunk array.
             if (state.currentSlideIndex >= state.deck.slides.length) {
               state.currentSlideIndex = Math.max(0, state.deck.slides.length - 1);
             }

@@ -406,7 +406,19 @@ export const useDeckStore = create<DeckState>()(
           let conflictDeck: Deck | null = null;
           let saveFailed = false;
           try {
-            conflictDeck = await _activeSave;
+            // Race the save against a 20s deadline. fs-access mode
+            // can hang indefinitely if the OS file lock is held by
+            // another process or the browser permission has silently
+            // expired — without a timeout, isSaving stays true and
+            // the UI sits on "Saving..." forever.
+            const SAVE_TIMEOUT_MS = 20_000;
+            const timeoutErr = new Error(`saveDeck timed out after ${SAVE_TIMEOUT_MS}ms`);
+            conflictDeck = await Promise.race([
+              _activeSave,
+              new Promise<never>((_, reject) =>
+                setTimeout(() => reject(timeoutErr), SAVE_TIMEOUT_MS),
+              ),
+            ]);
           } catch (err) {
             // I/O boundary — log and leave the deck dirty. We must NOT
             // advance savedVersionId or _lastSavedDeck, otherwise the

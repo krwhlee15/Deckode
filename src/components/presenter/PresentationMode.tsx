@@ -154,14 +154,13 @@ export function PresentationMode({ onExit }: PresentationModeProps) {
   const deck = useDeckStore((s) => s.deck);
   const currentSlideIndex = useDeckStore((s) => s.currentSlideIndex);
   const setCurrentSlide = useDeckStore((s) => s.setCurrentSlide);
-  const setSavePaused = useDeckStore((s) => s.setSavePaused);
   const adapter = useAdapter();
-
-  // Pause auto-save in presenter mode; watcher still reloads external changes
-  useEffect(() => {
-    setSavePaused(true);
-    return () => setSavePaused(false);
-  }, [setSavePaused]);
+  // Auto-save runs normally in presenter mode so note edits flow
+  // through the same debounced save loop the editor uses. The
+  // previous implementation paused saves on enter and ran a manual
+  // unpause/save/repause cycle on every note flush, which dropped
+  // edits if the user closed the textarea without hitting Cmd+S
+  // and made the "Saving..." indicator behave inconsistently.
 
   const [viewMode, setViewMode] = useState<ViewMode>("presenter");
   const [activeStep, setActiveStep] = useState(0);
@@ -462,12 +461,12 @@ export function PresentationMode({ onExit }: PresentationModeProps) {
     onExit();
   }, [postExit, onExit]);
 
-  /** Save notes while auto-save is paused: temporarily unpause → save → re-pause */
+  // Push the note edit through the regular store action — auto-save
+  // picks it up via the versionId subscription, debounced 1s, the
+  // same path the editor uses for any other field edit.
   const saveNotes = useCallback((slideId: string, notes: string) => {
     useDeckStore.getState().updateSlide(slideId, { notes });
-    setSavePaused(false);
-    useDeckStore.getState().saveToDisk().finally(() => setSavePaused(true));
-  }, [setSavePaused]);
+  }, []);
 
   // ── Laser pointer ──
 
@@ -950,7 +949,16 @@ function PresenterConsole({
                 className="flex-1 w-full bg-zinc-900 text-zinc-300 rounded px-3 py-2 resize-none border border-zinc-700 focus:border-blue-500 focus:outline-none font-mono"
                 style={{ fontSize: notesFontSize }}
                 value={noteDraft}
-                onChange={(e) => setNoteDraft(e.target.value)}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  setNoteDraft(next);
+                  // Mirror every keystroke into the store so the
+                  // editor's debounced auto-save loop picks it up
+                  // (1s debounce, exactly like editing any other
+                  // field). The local draft remains for cursor
+                  // continuity in this textarea.
+                  onSaveNotes(slide.id, next);
+                }}
                 onKeyDown={(e) => {
                   if (e.key === "Escape") handleSaveNotes();
                   if ((e.ctrlKey || e.metaKey) && e.key === "s") {
@@ -963,6 +971,7 @@ function PresenterConsole({
                     const ta = e.currentTarget;
                     const newValue = toggleNoteComment(ta);
                     setNoteDraft(newValue);
+                    onSaveNotes(slide.id, newValue);
                   }
                   // Let ArrowUp/Down propagate to window handler for slide navigation
                   if (e.key !== "ArrowUp" && e.key !== "ArrowDown") {

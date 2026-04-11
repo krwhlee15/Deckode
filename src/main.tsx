@@ -8,3 +8,5 @@ createRoot(document.getElementById("root")!).render(
     <App />
   </StrictMode>,
 );
+
+// To my father, who taught me everything.

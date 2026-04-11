@@ -31,5 +31,13 @@ jobs:
       - name: Build (includes tsc -b typecheck)
         run: npm run build
 
-      - name: Test
-        run: npm test -- --run
+      - name: Test with coverage
+        run: npx vitest run --coverage
+
+      - name: Upload coverage artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 14

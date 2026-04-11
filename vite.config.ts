@@ -63,5 +63,41 @@ export default defineConfig(({ command }) => ({
     globals: true,
     environment: "node",
     exclude: ["tests/**", "node_modules/**"],
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "html", "json-summary"],
+      reportsDirectory: "./coverage",
+      // Coverage targets the business-logic layer: AI pipeline, stores,
+      // utils, types. UI components (editor/presenter/renderer), React
+      // hooks and contexts, adapters, and the server plugin are excluded
+      // because they require heavy browser or HTTP mocking to unit-test
+      // and are instead covered by manual / visual-regression checks.
+      include: [
+        "src/ai/**/*.ts",
+        "src/stores/**/*.ts",
+        "src/utils/**/*.ts",
+        "src/types/**/*.ts",
+      ],
+      exclude: [
+        "src/**/*.test.ts",
+        "src/**/*.test.tsx",
+        // Legacy / dead code that is intentionally untested
+        "src/utils/tikzjax.ts",
+        "src/utils/videoParser.ts",
+        "src/utils/rasterize.ts",
+        "src/utils/componentLoader.ts",
+        "src/utils/crossInstanceAssets.ts",
+      ],
+      // Baseline thresholds — CI fails if coverage regresses below these.
+      // Raise incrementally as the test suite grows. The numbers reflect
+      // current post-Phase-4 coverage minus a small safety margin so that
+      // unrelated refactors do not accidentally trip the gate.
+      thresholds: {
+        statements: 45,
+        branches: 45,
+        functions: 38,
+        lines: 45,
+      },
+    },
   },
 }));

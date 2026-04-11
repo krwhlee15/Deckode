@@ -300,6 +300,38 @@ describe("replaceDeck — currentSlideIndex preservation", () => {
     expect(state.deck!.slides[state.currentSlideIndex]!.id).toBe("s2");
   });
 
+  it("drops selectedElementIds that no longer exist in the new deck", () => {
+    useDeckStore.getState().openProject("test", deck([
+      slide("s0", [el("s0-e0"), el("s0-e1")]),
+    ]));
+    useDeckStore.getState().selectElements(["s0-e0", "s0-e1"]);
+
+    // Replace with a deck where s0-e1 was removed
+    useDeckStore.getState().replaceDeck(deck([
+      slide("s0", [el("s0-e0")]),
+    ]));
+
+    const selected = useDeckStore.getState().selectedElementIds;
+    // s0-e1 is gone — selection must be pruned, not left as a ghost
+    // pointing at a vanished element. Stale selection IDs leak into
+    // the inspector and crash on operations like delete or transform.
+    expect(selected).not.toContain("s0-e1");
+    expect(selected).toEqual(["s0-e0"]);
+  });
+
+  it("clears cropElementId when the cropped element is removed by replaceDeck", () => {
+    useDeckStore.getState().openProject("test", deck([
+      slide("s0", [el("s0-e0")]),
+    ]));
+    useDeckStore.getState().setCropElement("s0-e0");
+
+    useDeckStore.getState().replaceDeck(deck([
+      slide("s0", [el("s0-e1")]),
+    ]));
+
+    expect(useDeckStore.getState().cropElementId).toBe(null);
+  });
+
   it("clamps to the last slide when the current slide is removed", () => {
     useDeckStore.getState().openProject("test", deck([
       slide("s0"), slide("s1"), slide("s2"),

@@ -298,6 +298,24 @@ export const useDeckStore = create<DeckState>()(
             } else if (state.currentSlideIndex >= deck.slides.length) {
               state.currentSlideIndex = Math.max(0, deck.slides.length - 1);
             }
+            // Drop stale element/slide selections and crop/trim
+            // anchors that point at elements removed by the new deck.
+            // Otherwise the inspector operates on ghost IDs and ops
+            // like delete_element / move_element crash later.
+            const liveElementIds = new Set<string>();
+            const liveSlideIds = new Set<string>();
+            for (const s of deck.slides) {
+              liveSlideIds.add(s.id);
+              for (const e of s.elements) liveElementIds.add(e.id);
+            }
+            state.selectedElementIds = state.selectedElementIds.filter((id) => liveElementIds.has(id));
+            state.selectedSlideIds = state.selectedSlideIds.filter((id) => liveSlideIds.has(id));
+            if (state.cropElementId && !liveElementIds.has(state.cropElementId)) {
+              state.cropElementId = null;
+            }
+            if (state.trimElementId && !liveElementIds.has(state.trimElementId)) {
+              state.trimElementId = null;
+            }
             saveSlideIndex(state.currentProject, state.currentSlideIndex);
             state.versionId += 1;
           }),

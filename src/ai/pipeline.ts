@@ -1,4 +1,4 @@
-import type { Deck, Slide, SlideElement, ImageElement } from "@/types/deck";
+import type { Deck, Slide, SlideElement, ImageElement, Animation, Comment } from "@/types/deck";
 import { useDeckStore } from "@/stores/deckStore";
 import { callGemini, buildFunctionDeclarations, type GeminiModel, type TekkalTool, getModelForAgent } from "./geminiClient";
 import { buildPlannerPrompt, buildGeneratorPrompt, buildContentAgentPrompt, buildVisualAgentPrompt, buildReviewerPrompt, buildWriterPrompt, extractSlideTitle, type PromptContext } from "./prompts";
@@ -739,6 +739,10 @@ export async function executeTool(name: string, args: Record<string, unknown>): 
       const usedIds = new Set<string>(target.elements.map((e) => e.id));
       for (const s of deck.slides) for (const el of s.elements) usedIds.add(el.id);
       const mergedElements: SlideElement[] = [...target.elements];
+      // Collect per-source oldId → newId maps so we can remap animations
+      // and comments after elements are moved.
+      const mergedAnimations = [...(target.animations ?? [])];
+      const mergedComments = [...(target.comments ?? [])];
       for (const src of sources) {
         const srcMinY = src.elements.length > 0
           ? Math.min(...src.elements.map((e) => e.position.y))
@@ -747,22 +751,56 @@ export async function executeTool(name: string, args: Record<string, unknown>): 
           ? Math.max(...src.elements.map((e) => e.position.y + ((e.size as { h?: number }).h ?? 0)))
           : 0;
         const dy = baseY - srcMinY;
+        const idMap = new Map<string, string>();
         for (const el of src.elements) {
           let newId = `${el.id}_from_${src.id}`;
           let suffix = 2;
           while (usedIds.has(newId)) newId = `${el.id}_from_${src.id}_${suffix++}`;
           usedIds.add(newId);
+          idMap.set(el.id, newId);
           mergedElements.push({
             ...el,
             id: newId,
             position: { x: el.position.x, y: el.position.y + dy },
           });
         }
+        // Bring source animations over with remapped targets. Animations
+        // whose target is not in idMap (shouldn't happen in well-formed
+        // decks, but possible after manual edits) are dropped.
+        if (src.animations) {
+          for (const anim of src.animations) {
+            const newTarget = idMap.get(anim.target);
+            if (newTarget) {
+              mergedAnimations.push({ ...anim, target: newTarget });
+            }
+          }
+        }
+        // Bring source comments over with remapped elementId anchors.
+        // Slide-level comments (no elementId) are kept as-is.
+        if (src.comments) {
+          for (const comment of src.comments) {
+            if (comment.elementId) {
+              const newElId = idMap.get(comment.elementId);
+              if (newElId) {
+                mergedComments.push({ ...comment, elementId: newElId });
+              } else {
+                // Orphaned anchor — drop the anchor, keep the text
+                mergedComments.push({ ...comment, elementId: undefined });
+              }
+            } else {
+              mergedComments.push({ ...comment });
+            }
+          }
+        }
         baseY += (srcMaxY - srcMinY) + 20;
       }
-      store.updateSlide(targetId, { elements: mergedElements });
+      store.updateSlide(targetId, {
+        elements: mergedElements,
+        animations: mergedAnimations.length > 0 ? mergedAnimations : undefined,
+        comments: mergedComments.length > 0 ? mergedComments : undefined,
+      });
       for (const src of sources) store.deleteSlide(src.id);
-      return `Merged ${sources.length} slide(s) into "${targetId}" (${mergedElements.length} elements total).`;
+      return `Merged ${sources.length} slide(s) into "${targetId}" (${mergedElements.length} elements, ${mergedAnimations.length} animations).`;
     }
     case "split_slide": {
       if (!deck) return "No deck loaded.";
@@ -782,22 +820,72 @@ export async function executeTool(name: string, args: Record<string, unknown>): 
       if (keepElements.length === 0 || movedElements.length === 0) {
         return `ERROR: split would leave one side empty. Choose a pivot that keeps at least one element on each side.`;
       }
-      // Rename moved elements to avoid ID conflicts across slides
+      // Rename moved elements to avoid ID conflicts across slides.
+      // Build an old→new ID map so animations and comments can follow
+      // the elements to whichever side they end up on.
       const usedIds = new Set<string>();
       for (const s of deck.slides) for (const el of s.elements) usedIds.add(el.id);
       for (const el of keepElements) usedIds.add(el.id);
+      const movedIdMap = new Map<string, string>();
       const renamed = movedElements.map((el) => {
         let newId = `${el.id}_${newSlideId}`;
         let suffix = 2;
         while (usedIds.has(newId)) newId = `${el.id}_${newSlideId}_${suffix++}`;
         usedIds.add(newId);
+        movedIdMap.set(el.id, newId);
         return { ...el, id: newId };
       });
-      store.updateSlide(slideId, { elements: keepElements });
+
+      const keptIds = new Set(keepElements.map((e) => e.id));
+
+      // Route animations: each animation goes with its target element.
+      // Animations whose target is in keptIds stay on the original slide.
+      // Animations whose target moved are rewritten with the new ID and
+      // placed on the new slide.
+      const keptAnimations: Animation[] = [];
+      const movedAnimations: Animation[] = [];
+      if (source.animations) {
+        for (const anim of source.animations) {
+          if (keptIds.has(anim.target)) {
+            keptAnimations.push({ ...anim });
+          } else if (movedIdMap.has(anim.target)) {
+            movedAnimations.push({ ...anim, target: movedIdMap.get(anim.target)! });
+          }
+          // else: orphaned animation (target in neither side) — drop
+        }
+      }
+
+      // Route comments similarly. Slide-level comments (no elementId)
+      // stay on the source slide since that's where the slide lives.
+      const keptComments: Comment[] = [];
+      const movedComments: Comment[] = [];
+      if (source.comments) {
+        for (const comment of source.comments) {
+          if (!comment.elementId) {
+            keptComments.push({ ...comment });
+          } else if (keptIds.has(comment.elementId)) {
+            keptComments.push({ ...comment });
+          } else if (movedIdMap.has(comment.elementId)) {
+            movedComments.push({
+              ...comment,
+              elementId: movedIdMap.get(comment.elementId)!,
+            });
+          }
+          // else: orphaned anchor — drop
+        }
+      }
+
+      store.updateSlide(slideId, {
+        elements: keepElements,
+        animations: keptAnimations.length > 0 ? keptAnimations : undefined,
+        comments: keptComments.length > 0 ? keptComments : undefined,
+      });
       const newSlide: Slide = {
         id: newSlideId,
         elements: renamed,
         notes: source.notes,
+        ...(movedAnimations.length > 0 ? { animations: movedAnimations } : {}),
+        ...(movedComments.length > 0 ? { comments: movedComments } : {}),
       };
       store.addSlide(newSlide, sourceIdx);
       return `Split "${slideId}" at "${pivotId}". Kept ${keepElements.length} elements; moved ${renamed.length} to new slide "${newSlideId}".`;

@@ -69,7 +69,12 @@ function legacyStorageKey(project: string): string {
   return `deckode:chat:${project}`;
 }
 
-function loadSessions(project: string): ChatSession[] {
+/**
+ * Internal helper, exported for tests. loads chat sessions for a project,
+ * transparently migrating from the pre-rebrand "deckode:chat:*" key when
+ * the new "tekkal:chat:*" key is absent.
+ */
+export function loadSessions(project: string): ChatSession[] {
   let raw = localStorage.getItem(storageKey(project));
   if (raw === null) {
     const legacy = localStorage.getItem(legacyStorageKey(project));

@@ -39,7 +39,7 @@ const DB_NAME = "tekkal-image-cache";
 const DB_VERSION = 1;
 const STORE_NAME = "downscaled";
 
-function cacheKey(src: string, opts: Required<DownscaleOptions>): string {
+export function cacheKey(src: string, opts: Required<DownscaleOptions>): string {
   return `${src}|${opts.maxLongEdge}|${opts.format}|${opts.quality}`;
 }
 
@@ -161,7 +161,7 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
-function computeTargetSize(
+export function computeTargetSize(
   srcW: number,
   srcH: number,
   maxLongEdge: number,

@@ -185,7 +185,7 @@ async function captionWithRetry(src: string): Promise<string | null> {
   throw lastError;
 }
 
-function isTransientError(err: unknown): boolean {
+export function isTransientError(err: unknown): boolean {
   const msg = err instanceof Error ? err.message : String(err);
   // Gemini SDK surfaces HTTP errors with status codes in the message.
   // 429 (rate limit), 500/502/503/504 (server errors), and network

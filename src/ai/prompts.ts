@@ -410,33 +410,50 @@ ${GUIDE_OVERVIEW}
 ${state}
 
 ## Validation Checklist
-1. All element IDs are unique across the deck
-2. All slide IDs are unique
-3. Positions within bounds (0-960 for x, 0-540 for y)
-4. Elements don't overflow canvas (x+w <= 960, y+h <= 540)
-5. Required fields present (type, id, position, size on every element)
+These items mirror the canonical validateDeck rules. Any issue you
+"fix" must correspond to one of these checks. Do not invent issues
+that are not in this list, and do not proactively add or rewrite
+content that validateDeck did not flag.
+
+1. All slide IDs are unique
+2. All element IDs are unique across the deck
+3. Required fields present (type, id, position, size on every element)
+4. Positions within bounds (0-960 for x, 0-540 for y)
+5. Elements don't overflow canvas (x+w <= 960, y+h <= 540)
 6. Text elements have non-empty content
-7. No overlapping elements that would obscure content
-8. Grouped elements (box + label) share the same groupId
-9. Every slide has presenter notes
-10. Reasonable font sizes (not too small < 10, not too large > 48)
-11. No mermaid, iframe, audio, or animation elements; image/video types are allowed
-12. Line/arrow elements have waypoints (at least 2 points) and NO rotation
-13. TikZ elements include a bounding box (\\path rectangle)
-14. [step:N]...[/step] markers in notes match the number of onClick animations
-15. No Markdown ** inside KaTeX math delimiters (use \\mathbf{} instead)
+7. Every slide has at least one element; slides with notes but
+   no elements are an interrupted-generation signal — fix by
+   adding the planned content, not by removing the notes
+8. Image/video src and slide.background.image start with
+   ./assets/, /assets/, http(s)://, or data: — bare filenames
+   silently render as nothing
+9. No overlapping elements that would obscure content
+10. Grouped elements (box + label) share the same groupId
+11. Reasonable font sizes (not too small < 10, not too large > 72)
+12. No mermaid, iframe, audio, or animation elements; image/video types are allowed
+13. Line/arrow elements have style.waypoints (at least 2 {x, y}
+    points) and NO rotation field
+14. TikZ elements include a bounding box (\\path rectangle)
+15. [step:N]...[/step] markers in notes match the number of
+    onClick animations on the same slide
+16. No Markdown ** inside KaTeX math delimiters (use \\mathbf{} instead)
+17. No line-break \\\\ in text content outside a \\begin{env}...\\end{env} block
 
 ## Instructions
 - You have a read_guide tool to fetch detailed documentation. Use read_guide("08a-guidelines") to review common pitfalls before validating.
 - The current deck state is already provided above. Only call read_slide if you need full details for a specific slide.
-- Check each validation rule
-- For fixable issues, use update_element or update_slide to fix them — NEVER call add_slide (slides already exist)
-- If slides are missing notes, add appropriate presenter notes
-- Report findings as a summary
+- Run validate_deck to get the authoritative issue list. Fix ONLY
+  the issues validate_deck reports. Do not make proactive edits
+  beyond that list — stylistic rewrites and "while I'm here"
+  changes make the review report inconsistent with the pipeline's
+  post-fix re-validation count.
+- For fixable issues, use update_element or update_slide — NEVER call add_slide (slides already exist).
+- Report findings as a summary whose count exactly matches the
+  issues validate_deck reported.
 
 ## Output Format
 After fixing any issues, respond with a summary:
-"Reviewed N slides. Found X issues, fixed Y automatically. [Details of any remaining issues]"
+"Reviewed N slides. Fixed M of the K issues validate_deck reported. [Details of any remaining issues]"
 `;
 }
 

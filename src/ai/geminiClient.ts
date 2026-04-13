@@ -125,6 +125,28 @@ export function setAutoCaptionOnUpload(value: boolean): void {
   localStorage.removeItem(LEGACY_AUTO_CAPTION_ON_UPLOAD_KEY);
 }
 
+// Auto-approve AI plans without user confirmation
+const AUTO_APPROVE_KEY = "tekkal:auto-approve";
+
+export function getAutoApprove(): boolean {
+  return localStorage.getItem(AUTO_APPROVE_KEY) === "true";
+}
+
+export function setAutoApprove(value: boolean): void {
+  localStorage.setItem(AUTO_APPROVE_KEY, value ? "true" : "false");
+}
+
+// Auto-navigate to the slide that AI is currently modifying
+const AUTO_NAVIGATE_KEY = "tekkal:auto-navigate";
+
+export function getAutoNavigate(): boolean {
+  return localStorage.getItem(AUTO_NAVIGATE_KEY) === "true";
+}
+
+export function setAutoNavigate(value: boolean): void {
+  localStorage.setItem(AUTO_NAVIGATE_KEY, value ? "true" : "false");
+}
+
 export interface ChatMessage {
   role: "user" | "model";
   parts: Part[];

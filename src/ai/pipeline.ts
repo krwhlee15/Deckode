@@ -127,6 +127,8 @@ export interface PipelineCallbacks {
   onStyleInquiry: () => Promise<StylePreferences>; // returns user's style choices
   onComplete: (summary: string) => void;
   onError: (error: string) => void;
+  /** Called whenever a tool modifies a slide; index is 0-based. */
+  onSlideModified?: (slideIndex: number) => void;
 }
 
 // ---------- Tool Execution ----------
@@ -1375,6 +1377,36 @@ function messagePartsForHistory(message: string | Part[]): Part[] {
 
 // ---------- Agent Call with Tool Loop ----------
 
+/**
+ * Returns the primary slide ID that was modified by a given tool call, or null
+ * for tools that don't target a specific slide (e.g. set_deck_meta, read_slide).
+ */
+function getModifiedSlideId(toolName: string, args: Record<string, unknown>): string | null {
+  switch (toolName) {
+    case "add_slide": {
+      const slide = args.slide as { id?: string } | undefined;
+      return slide?.id ?? null;
+    }
+    case "update_slide":
+    case "add_element":
+    case "update_element":
+    case "delete_element":
+    case "set_speaker_notes":
+    case "set_slide_background":
+    case "change_z_order":
+    case "split_slide":
+    case "resize_element":
+    case "duplicate_slide":
+      return (args.slideId as string | undefined) ?? null;
+    case "merge_slides":
+      return (args.targetId as string | undefined) ?? null;
+    case "move_element_to_slide":
+      return (args.toSlideId as string | undefined) ?? null;
+    default:
+      return null;
+  }
+}
+
 async function callAgentWithTools(
   model: GeminiModel,
   systemPrompt: string,
@@ -1383,6 +1415,7 @@ async function callAgentWithTools(
   history: Content[],
   onLog: (msg: string) => void,
   initialImageParts: Part[] = [],
+  onSlideModified?: (slideIndex: number) => void,
 ): Promise<string> {
   const geminiTools = buildFunctionDeclarations(tools);
   let currentHistory = [...history];
@@ -1430,6 +1463,16 @@ async function callAgentWithTools(
       try {
         const result = await executeTool(fc.name, fc.args);
         functionResponses.push(`${fc.name} result: ${result}`);
+        if (onSlideModified) {
+          const slideId = getModifiedSlideId(fc.name, fc.args);
+          if (slideId) {
+            const deck = useDeckStore.getState().deck;
+            if (deck) {
+              const idx = deck.slides.findIndex((s) => s.id === slideId);
+              if (idx !== -1) onSlideModified(idx);
+            }
+          }
+        }
       } catch (err) {
         const errMsg = err instanceof Error ? err.message : String(err);
         onLog(`  ✗ ${fc.name} failed: ${errMsg}`);
@@ -1547,6 +1590,7 @@ async function runGenerator(
       [],
       cb.onLog,
       imageParts,
+      cb.onSlideModified,
     );
   }
 
@@ -1576,7 +1620,7 @@ ${slideContext}
 After calling add_slide, briefly confirm.`;
 
       cb.onLog(`  [content] Creating text/code/table elements... (gen ${genAttempt}/${maxGenAttempts})`);
-      await callAgentWithTools(getModelForAgent("generator"), contentPrompt, tools, contentMessage, [], cb.onLog);
+      await callAgentWithTools(getModelForAgent("generator"), contentPrompt, tools, contentMessage, [], cb.onLog, [], cb.onSlideModified);
     }
 
     // --- Visual Agent: runs once after generation ---
@@ -1609,7 +1653,7 @@ Steps:
 1. Call read_slide("${slidePlan.id}") to see existing elements
 2. Add the required visual element(s) in the RIGHT column: x:490, y:80, w:440, h:380
 3. Do NOT create duplicate IDs. Use unique IDs like "${slidePlan.id}-visual-1"`;
-      await callAgentWithTools(getModelForAgent("generator"), visualPrompt, tools, visualMessage, [], cb.onLog);
+      await callAgentWithTools(getModelForAgent("generator"), visualPrompt, tools, visualMessage, [], cb.onLog, [], cb.onSlideModified);
     }
 
     // Phase 2: Fix pass — reviewer only, generation does NOT re-run
@@ -1656,6 +1700,8 @@ Steps:
           `Fix issues in slide ${slidePlan.id} only. Use update_element to reposition, delete_element to remove forbidden types:\n${fixInstructions}`,
           [],
           cb.onLog,
+          [],
+          cb.onSlideModified,
         );
       }
     }
@@ -1693,6 +1739,8 @@ async function runReviewer(cb: PipelineCallbacks): Promise<string> {
     message,
     [],
     cb.onLog,
+    [],
+    cb.onSlideModified,
   );
 
   // Post-fix re-validation guarantees we never report success without
@@ -1734,6 +1782,8 @@ async function runWriter(
     userMessage,
     [],
     cb.onLog,
+    [],
+    cb.onSlideModified,
   );
 }
 

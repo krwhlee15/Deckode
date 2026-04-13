@@ -4,7 +4,7 @@ import { useDeckStore } from "@/stores/deckStore";
 import { useContextBarStore } from "@/stores/contextBarStore";
 import { useProjectRefStore } from "@/stores/projectRefStore";
 import { runPipeline, type PipelineCallbacks, type PlanResult, type StylePreferences, type ContextBarSnapshot } from "@/ai/pipeline";
-import { getApiKey, setApiKey, clearApiKey, getAgentModels, setAgentModel, AVAILABLE_MODELS, getAutoCaptionOnUpload, setAutoCaptionOnUpload, type AgentRole } from "@/ai/geminiClient";
+import { getApiKey, setApiKey, clearApiKey, getAgentModels, setAgentModel, AVAILABLE_MODELS, getAutoCaptionOnUpload, setAutoCaptionOnUpload, getAutoApprove, setAutoApprove, getAutoNavigate, setAutoNavigate, type AgentRole } from "@/ai/geminiClient";
 import { ContextBar } from "./ContextBar";
 import { AtMentionDropdown } from "./AtMentionDropdown";
 
@@ -44,6 +44,8 @@ export function AiChatPanel() {
   const [showSettings, setShowSettings] = useState(false);
   const [agentModels, setAgentModels] = useState(getAgentModels);
   const [autoCaption, setAutoCaption] = useState(getAutoCaptionOnUpload);
+  const [autoApprove, setAutoApproveState] = useState(getAutoApprove);
+  const [autoNavigate, setAutoNavigateState] = useState(getAutoNavigate);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -86,6 +88,11 @@ export function AiChatPanel() {
         }
       },
       onPlanReady: (plan: PlanResult) => {
+        if (getAutoApprove()) {
+          addMessage("assistant", formatPlan(plan), "plan");
+          addMessage("user", "Auto-approved");
+          return Promise.resolve(true);
+        }
         return new Promise<boolean>((resolve) => {
           addMessage("assistant", formatPlan(plan), "plan");
           setPendingApproval({ plan, resolve });
@@ -98,14 +105,29 @@ export function AiChatPanel() {
         });
       },
       onComplete: (summary) => {
+        // Persist the full action log so it's visible in chat history
+        const { logs: completedLogs } = useChatStore.getState();
+        if (completedLogs.length > 1) {
+          addMessage("assistant", `**Activity log (${completedLogs.length} ops):**\n\`\`\`\n${completedLogs.join("\n")}\`\`\``, "log");
+        }
         addMessage("assistant", summary);
         setProcessing(false);
         setCurrentStage(null);
       },
       onError: (error) => {
+        // Persist partial log on error too
+        const { logs: errorLogs } = useChatStore.getState();
+        if (errorLogs.length > 0) {
+          addMessage("assistant", `**Activity log (${errorLogs.length} ops):**\n\`\`\`\n${errorLogs.join("\n")}\`\`\``, "log");
+        }
         addMessage("system", `Error: ${error}`);
         setProcessing(false);
         setCurrentStage(null);
+      },
+      onSlideModified: (slideIndex) => {
+        if (getAutoNavigate()) {
+          useDeckStore.getState().setCurrentSlide(slideIndex);
+        }
       },
     };
 
@@ -303,6 +325,30 @@ export function AiChatPanel() {
             />
             <span className="text-[10px] text-zinc-400">Auto-caption images on upload</span>
           </label>
+          <label className="flex items-center gap-2 cursor-pointer" title="Skip the Approve/Reject step and let the AI proceed immediately after planning.">
+            <input
+              type="checkbox"
+              checked={autoApprove}
+              onChange={(e) => {
+                setAutoApprove(e.target.checked);
+                setAutoApproveState(e.target.checked);
+              }}
+              className="accent-blue-500"
+            />
+            <span className="text-[10px] text-zinc-400">Auto-approve AI plans</span>
+          </label>
+          <label className="flex items-center gap-2 cursor-pointer" title="Automatically navigate to the slide the AI is currently modifying.">
+            <input
+              type="checkbox"
+              checked={autoNavigate}
+              onChange={(e) => {
+                setAutoNavigate(e.target.checked);
+                setAutoNavigateState(e.target.checked);
+              }}
+              className="accent-blue-500"
+            />
+            <span className="text-[10px] text-zinc-400">Auto-navigate to modified slide</span>
+          </label>
           <ReferenceProjectsSection />
         </div>
       )}
@@ -395,8 +441,17 @@ export function AiChatPanel() {
               <span className="text-[10px] text-zinc-600 ml-auto">{logs.length} ops</span>
             </div>
             {logs.length > 0 && (
-              <div className="text-[10px] text-zinc-500 font-mono leading-relaxed break-all">
-                {logs[logs.length - 1]}
+              <div className="space-y-0.5">
+                {logs.slice(-8).map((log, i, arr) => (
+                  <div
+                    key={i}
+                    className={`text-[10px] font-mono leading-relaxed break-all ${
+                      i === arr.length - 1 ? "text-zinc-400" : "text-zinc-600"
+                    }`}
+                  >
+                    {log}
+                  </div>
+                ))}
               </div>
             )}
           </div>

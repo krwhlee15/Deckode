@@ -156,19 +156,22 @@ function mdToHtml(source: string): string {
 }
 
 function inlineHtml(text: string): string {
-  const re = /(\*\*(.+?)\*\*)|(\*(.+?)\*)|(`(.+?)`)|(\$(.+?)\$)/g;
+  // $$...$$ must come before $...$ to avoid misparse as $+($inner$)+$
+  const re = /(\$\$(.+?)\$\$)|(\*\*(.+?)\*\*)|(\*(.+?)\*)|(`(.+?)`)|([$](.+?)[$])/g;
   let r = "";
   let last = 0;
   let m: RegExpExecArray | null;
 
   while ((m = re.exec(text)) !== null) {
     if (m.index > last) r += esc(text.slice(last, m.index));
-    if (m[2] !== undefined) r += `<strong>${esc(m[2])}</strong>`;
-    else if (m[4] !== undefined) r += `<em>${esc(m[4])}</em>`;
-    else if (m[6] !== undefined)
-      r += `<code style="background:rgba(255,255,255,0.1);padding:0 0.375em;border-radius:0.25em;font-size:0.85em;font-family:monospace">${esc(m[6])}</code>`;
+    if (m[2] !== undefined)
+      r += `<span style="display:inline-block;vertical-align:middle;margin:0.25em 0">${katex.renderToString(m[2], { displayMode: true, throwOnError: false })}</span>`;
+    else if (m[4] !== undefined) r += `<strong>${esc(m[4])}</strong>`;
+    else if (m[6] !== undefined) r += `<em>${esc(m[6])}</em>`;
     else if (m[8] !== undefined)
-      r += katex.renderToString(m[8], {
+      r += `<code style="background:rgba(255,255,255,0.1);padding:0 0.375em;border-radius:0.25em;font-size:0.85em;font-family:monospace">${esc(m[8])}</code>`;
+    else if (m[10] !== undefined)
+      r += katex.renderToString(m[10], {
         displayMode: false,
         throwOnError: false,
       });
@@ -273,7 +276,7 @@ export async function captureSlideToDataUrl(
       if (el.type === "scene3d") {
         scene3dElements.push(el as Scene3DElementType);
         const ph = document.createElement("div");
-        ph.style.cssText = `position:absolute;left:${el.position.x}px;top:${el.position.y}px;width:${el.size.w}px;height:${el.size.h}px;background:${(el as Scene3DElementType).scene?.background ?? "#1a1a2e"}`;
+        ph.style.cssText = `position:absolute;left:${el.position.x}px;top:${el.position.y}px;width:${el.size.w}px;height:${el.size.h}px;background:${(el as Scene3DElementType).scene?.background ?? "transparent"}`;
         ctr.appendChild(ph);
         continue;
       }

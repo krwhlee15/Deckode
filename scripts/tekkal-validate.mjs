@@ -450,36 +450,55 @@ function validateSlide(slide, slideIdx, seenSlideIds, seenElementIds, findings) 
     );
   }
 
-  // Slide-level overlap pass — runs the same exemption logic the
-  // editor uses (shape-on-content allowed, label-on-box allowed,
-  // intentional groupId stacking allowed). Anything else is reported
-  // as a warning so the agent gets a chance to nudge it.
-  const measurable = slide.elements.filter(
-    (e) =>
-      isPlainObject(e) &&
-      isPlainObject(e.position) &&
-      isPlainObject(e.size) &&
-      typeof e.size.w === "number" &&
-      typeof e.size.h === "number" &&
-      e.size.w > 5 &&
-      e.size.h > 5,
-  );
+  // Slide-level overlap pass. Exemptions mirror src/ai/validation.ts exactly:
+  //   - line/arrow shapes excluded (bbox is enclosure, not a visual region)
+  //   - explicit allowOverlap:true opt-out
+  //   - shared groupId
+  //   - shape-on-content (shape overlapping text/table/code)
+  //   - rectangle fully enclosing another element (container/frame)
+  //   - label-on-box (small inside large, ratio > 3)
+  //   - annotation (small on much larger, ratio > 4)
+  //   - image-overlay: capped at warning severity
+  const effSize = (s) => {
+    if (!isPlainObject(s)) return { w: undefined, h: undefined };
+    const hasW = typeof s.w === "number";
+    const hasH = typeof s.h === "number";
+    const hasAR = typeof s.aspectRatio === "number" && s.aspectRatio > 0;
+    return {
+      w: hasW ? s.w : hasAR && hasH ? s.h * s.aspectRatio : undefined,
+      h: hasH ? s.h : hasAR && hasW ? s.w / s.aspectRatio : undefined,
+    };
+  };
+  const isLineLike = (e) =>
+    e.type === "shape" && (e.shape === "line" || e.shape === "arrow");
+  const measurable = [];
+  for (const e of slide.elements) {
+    if (!isPlainObject(e) || !isPlainObject(e.position) || !isPlainObject(e.size)) continue;
+    if (isLineLike(e)) continue;
+    const eff = effSize(e.size);
+    if (eff.w === undefined || eff.h === undefined) continue;
+    if (eff.w <= 5 || eff.h <= 5) continue;
+    measurable.push({ el: e, w: eff.w, h: eff.h });
+  }
   for (let a = 0; a < measurable.length; a++) {
     for (let b = a + 1; b < measurable.length; b++) {
-      const ea = measurable[a];
-      const eb = measurable[b];
+      const ma = measurable[a];
+      const mb = measurable[b];
+      const ea = ma.el;
+      const eb = mb.el;
+      if (ea.allowOverlap || eb.allowOverlap) continue;
       const ga = ea.groupId;
       const gb = eb.groupId;
       if (ga && ga === gb) continue;
-      const ow =
-        Math.min(ea.position.x + ea.size.w, eb.position.x + eb.size.w) -
-        Math.max(ea.position.x, eb.position.x);
-      const oh =
-        Math.min(ea.position.y + ea.size.h, eb.position.y + eb.size.h) -
-        Math.max(ea.position.y, eb.position.y);
+      const ax1 = ea.position.x, ay1 = ea.position.y;
+      const ax2 = ax1 + ma.w,  ay2 = ay1 + ma.h;
+      const bx1 = eb.position.x, by1 = eb.position.y;
+      const bx2 = bx1 + mb.w,  by2 = by1 + mb.h;
+      const ow = Math.min(ax2, bx2) - Math.max(ax1, bx1);
+      const oh = Math.min(ay2, by2) - Math.max(ay1, by1);
       if (ow <= 20 || oh <= 20) continue;
-      const areaA = ea.size.w * ea.size.h;
-      const areaB = eb.size.w * eb.size.h;
+      const areaA = ma.w * ma.h;
+      const areaB = mb.w * mb.h;
       const pct = (ow * oh) / Math.min(areaA, areaB);
       const isShapeOnContent =
         (VISUAL_TYPES.has(ea.type) && CONTENT_TYPES.has(eb.type)) ||
@@ -488,8 +507,13 @@ function validateSlide(slide, slideIdx, seenSlideIds, seenElementIds, findings) 
       const ratio = Math.max(areaA, areaB) / Math.min(areaA, areaB);
       const isLabelOnBox = pct > 0.9 && ratio > 3;
       const isAnnotation = ratio > 4;
-      if (isLabelOnBox || isAnnotation) continue;
-      if (pct > 0.5) {
+      const eaIsRect = ea.type === "shape" && ea.shape === "rectangle";
+      const ebIsRect = eb.type === "shape" && eb.shape === "rectangle";
+      const aEncB = eaIsRect && ax1 <= bx1 && ay1 <= by1 && ax2 >= bx2 && ay2 >= by2;
+      const bEncA = ebIsRect && bx1 <= ax1 && by1 <= ay1 && bx2 >= ax2 && by2 >= ay2;
+      if (isLabelOnBox || isAnnotation || aEncB || bEncA) continue;
+      const hasImage = ea.type === "image" || eb.type === "image";
+      if (pct > 0.5 && !hasImage) {
         findings.error(
           `${slidePath}.elements[${slide.elements.indexOf(ea)}]`,
           `Element "${ea.id}" overlaps "${eb.id}" by ${Math.round(pct * 100)}% — move or resize one`,

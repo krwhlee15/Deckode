@@ -22,6 +22,21 @@ Every element has these common fields:
 | `style` | object | no | Type-specific styling |
 | `rotation` | number | no | Rotation in degrees (clockwise) |
 | `groupId` | string | no | Group identifier. Elements sharing the same `groupId` form a group — they move and scale together. |
+| `allowOverlap` | boolean | no | Opt out of the validator's overlap check for this element. Use for intentional overlays the detector can't infer (rare — most cases are handled automatically). |
+
+## Overlap check
+
+`validateDeck` and the CLI validator flag pairs of elements whose bounding boxes visibly overlap. Several patterns are **auto-exempted** and never reported:
+
+- **Line/arrow shapes** — `"shape": "line"` and `"shape": "arrow"` are excluded entirely (their bbox is an enclosure of the polyline path, not a visual region, so fan-out diagrams with arrows sharing an origin don't trigger false positives).
+- **Shape + content** — a shape overlapping a text/table/code element is treated as decorative framing.
+- **Container** — a rectangle that fully encloses another element is treated as a frame (frame-around-image, highlight box around a screenshot).
+- **Label-on-box** — a small element >90% contained inside a much larger one.
+- **Annotation** — any pair with an area ratio > 4×.
+- **Shared groupId** — elements in the same group.
+- **Image overlays** — if either element is an image, overlap is capped at *warning* severity (never an error), since captions and callouts on images are common and legitimate.
+
+If none of these fit and you still want to silence the check on a specific element, set `"allowOverlap": true` on it.
 
 **Image elements have additional semantic fields**: `alt` (required in practice for accessibility and AI context), `caption` (longer description), `description` (free-form detail), and `aiSummary` (auto-generated multimodal caption cached from a Gemini call). See `04b-elem-media` for the full image schema and captioning rules.
 

@@ -483,6 +483,70 @@ describe("validateDeck — overlap detection", () => {
     const result = validateDeck(d);
     expect(result.issues.filter((i) => /overlap/.test(i.message))).toHaveLength(0);
   });
+
+  // ── B1: relaxed overlap rules ─────────────────────────────────────
+
+  it("excludes line/arrow shapes from overlap entirely (fan-out diagrams)", () => {
+    const d = deck([slide("s1", [
+      shape("a1", "arrow", {
+        position: { x: 100, y: 100 },
+        size: { w: 200, h: 0 },
+        style: { waypoints: [{ x: 0, y: 0 }, { x: 200, y: 0 }] },
+      } as Partial<ShapeElement>),
+      shape("a2", "arrow", {
+        position: { x: 100, y: 100 },
+        size: { w: 200, h: 100 },
+        style: { waypoints: [{ x: 0, y: 0 }, { x: 200, y: 100 }] },
+      } as Partial<ShapeElement>),
+    ])]);
+    const result = validateDeck(d);
+    expect(result.issues.filter((i) => /overlap/.test(i.message))).toHaveLength(0);
+  });
+
+  it("exempts rectangle fully enclosing another element (frame/container pattern)", () => {
+    const d = deck([slide("s1", [
+      shape("frame", "rectangle", { position: { x: 100, y: 100 }, size: { w: 400, h: 300 } }),
+      image("img", { position: { x: 120, y: 120 }, size: { w: 360, h: 260 } }),
+    ])]);
+    const result = validateDeck(d);
+    expect(result.issues.filter((i) => /overlap/.test(i.message))).toHaveLength(0);
+  });
+
+  it("caps image-overlay overlap at warning severity (never error)", () => {
+    const d = deck([slide("s1", [
+      image("img", { position: { x: 100, y: 100 }, size: { w: 400, h: 300 } }),
+      text("label", "Caption", { position: { x: 200, y: 200 }, size: { w: 200, h: 80 } }),
+    ])]);
+    const result = validateDeck(d);
+    const overlapIssues = result.issues.filter((i) => /overlap/.test(i.message));
+    // May be silenced by shape-on-content exemption or label-on-box — but
+    // whatever is emitted must NOT be an error.
+    expect(overlapIssues.every((i) => i.severity !== "error")).toBe(true);
+  });
+
+  it("respects allowOverlap: true opt-out on either element", () => {
+    const d = deck([slide("s1", [
+      text("e1", "a", {
+        position: { x: 0, y: 0 },
+        size: { w: 200, h: 100 },
+        allowOverlap: true,
+      } as Partial<TextElement>),
+      text("e2", "b", { position: { x: 10, y: 10 }, size: { w: 200, h: 100 } }),
+    ])]);
+    const result = validateDeck(d);
+    expect(result.issues.filter((i) => /overlap/.test(i.message))).toHaveLength(0);
+  });
+
+  it("still flags two overlapping text elements (regression)", () => {
+    const d = deck([slide("s1", [
+      text("e1", "aaa", { position: { x: 0, y: 0 }, size: { w: 200, h: 100 } }),
+      text("e2", "bbb", { position: { x: 10, y: 10 }, size: { w: 200, h: 100 } }),
+    ])]);
+    const result = validateDeck(d);
+    expect(result.issues.some(
+      (i) => i.severity === "error" && /overlap/.test(i.message),
+    )).toBe(true);
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────

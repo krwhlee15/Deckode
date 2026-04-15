@@ -188,6 +188,10 @@ interface BaseElement {
   size: Size;
   rotation?: number;
   groupId?: string;
+  /** Opt out of the validator's overlap check for this element. Use for
+   *  intentional overlays (labels on images, highlights on screenshots,
+   *  fan-out diagrams, etc.). */
+  allowOverlap?: boolean;
 }
 
 export interface TextElement extends BaseElement {

@@ -118,10 +118,21 @@ export function validateDeck(deck: Deck): ValidationResult {
     // Uses effective dimensions so elements defined via aspectRatio still
     // participate in overlap checks. Dimensions are kept in a parallel
     // array because immer-frozen elements cannot be extended.
+    //
+    // Line/arrow shapes are excluded from the overlap check entirely:
+    // their bbox encloses a polyline path, not a visual region, so arrows
+    // sharing an origin point legitimately have overlapping bboxes without
+    // any actual visual conflict.
+    const isLineLike = (e: typeof slide.elements[number]): boolean =>
+      e.type === "shape" &&
+      ((e as { shape?: string }).shape === "line" ||
+        (e as { shape?: string }).shape === "arrow");
+
     type Measured = { el: typeof slide.elements[number]; w: number; h: number };
     const measurableEls: Measured[] = [];
     for (const e of slide.elements) {
       if (!e.position || !e.size) continue;
+      if (isLineLike(e)) continue;
       const eff = effectiveSize(e.size);
       if (eff.w === undefined || eff.h === undefined) continue;
       if (eff.w <= 5 || eff.h <= 5) continue;
@@ -133,6 +144,9 @@ export function validateDeck(deck: Deck): ValidationResult {
         const mb = measurableEls[b]!;
         const ea = ma.el;
         const eb = mb.el;
+        // Skip if either element opts out of overlap checking
+        if ((ea as { allowOverlap?: boolean }).allowOverlap) continue;
+        if ((eb as { allowOverlap?: boolean }).allowOverlap) continue;
         // Skip if they share a groupId (intentionally stacked)
         const gaGroup = (ea as { groupId?: string }).groupId;
         const gbGroup = (eb as { groupId?: string }).groupId;
@@ -159,7 +173,15 @@ export function validateDeck(deck: Deck): ValidationResult {
                                    (CONTENT.includes(eaType ?? "") && VISUAL.includes(ebType ?? ""));
           // Skip small element on much larger (ratio > 4x) — label-in-box or annotation
           const isAnnotation = Math.max(areaA, areaB) / Math.min(areaA, areaB) > 4;
-          if (!isLabelOnBox && !isShapeOnContent && !isAnnotation) {
+          // Container pattern: a rectangle shape fully enclosing another
+          // element (frame-around-image, highlight box around a screenshot).
+          // "Full enclosure" = other element's bbox sits entirely inside.
+          const eaIsRect = eaType === "shape" && (ea as { shape?: string }).shape === "rectangle";
+          const ebIsRect = ebType === "shape" && (eb as { shape?: string }).shape === "rectangle";
+          const aEnclosesB = eaIsRect && ax1 <= bx1 && ay1 <= by1 && ax2 >= bx2 && ay2 >= by2;
+          const bEnclosesA = ebIsRect && bx1 <= ax1 && by1 <= ay1 && bx2 >= ax2 && by2 >= ay2;
+          const isContainer = aEnclosesB || bEnclosesA;
+          if (!isLabelOnBox && !isShapeOnContent && !isAnnotation && !isContainer) {
             // Compute a suggested target position
             const [larger, smaller] = areaA >= areaB ? [ma, mb] : [mb, ma];
             const candidateX = larger.el.position.x + larger.w + 10;
@@ -178,7 +200,10 @@ export function validateDeck(deck: Deck): ValidationResult {
             }
             const coordsA = `${ax1},${ay1} ${ma.w}×${ma.h}`;
             const coordsB = `${bx1},${by1} ${mb.w}×${mb.h}`;
-            if (overlapPct > 0.5) {
+            // Image overlays (labels, highlights, callouts) are common and
+            // legitimate — cap severity at warning when one side is an image.
+            const hasImage = eaType === "image" || ebType === "image";
+            if (overlapPct > 0.5 && !hasImage) {
               issues.push({
                 severity: "error",
                 slideId: slide.id,
@@ -558,8 +583,15 @@ export function resolveOverlaps(
     }
   }
 
+  // Mirror validateDeck's line/arrow exclusion: their bbox isn't a visual region.
+  const isLineLike = (e: typeof slide.elements[number]): boolean =>
+    e.type === "shape" &&
+    ((e as { shape?: string }).shape === "line" ||
+      (e as { shape?: string }).shape === "arrow");
+
   const measurable = slide.elements.filter((e) => {
     if (!e.position) return false;
+    if (isLineLike(e)) return false;
     const s = siz.get(e.id);
     return s !== undefined && s.w > 5 && s.h > 5;
   });
@@ -576,6 +608,10 @@ export function resolveOverlaps(
       for (let b = a + 1; b < measurable.length; b++) {
         const ea = measurable[a]!;
         const eb = measurable[b]!;
+
+        // Opt-out via allowOverlap
+        if ((ea as { allowOverlap?: boolean }).allowOverlap) continue;
+        if ((eb as { allowOverlap?: boolean }).allowOverlap) continue;
 
         // Same exemptions as validateDeck
         const gaGroup = (ea as { groupId?: string }).groupId;
@@ -605,7 +641,16 @@ export function resolveOverlaps(
 
         const isLabelOnBox = pct > 0.9 && Math.max(areaA, areaB) / Math.min(areaA, areaB) > 3;
         const isAnnotation = Math.max(areaA, areaB) / Math.min(areaA, areaB) > 4;
-        if (isLabelOnBox || isAnnotation) continue;
+        // Container pattern: rectangle shape fully enclosing another element
+        const eaIsRect = eaType === "shape" && (ea as { shape?: string }).shape === "rectangle";
+        const ebIsRect = ebType === "shape" && (eb as { shape?: string }).shape === "rectangle";
+        const aEncB = eaIsRect && pA.x <= pB.x && pA.y <= pB.y &&
+          pA.x + sA.w >= pB.x + sB.w && pA.y + sA.h >= pB.y + sB.h;
+        const bEncA = ebIsRect && pB.x <= pA.x && pB.y <= pA.y &&
+          pB.x + sB.w >= pA.x + sA.w && pB.y + sB.h >= pA.y + sA.h;
+        if (isLabelOnBox || isAnnotation || aEncB || bEncA) continue;
+        // Image overlays are user-intent, skip auto-resolve
+        if (eaType === "image" || ebType === "image") continue;
         if (pct <= 0.15) continue;
 
         // Move the smaller element

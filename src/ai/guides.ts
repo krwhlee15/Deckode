@@ -23,6 +23,8 @@ import guide08c from "../../docs/guide/08c-visual-style.md?raw";
 import guide08d from "../../docs/guide/08d-layout-templates.md?raw";
 import guide09 from "../../docs/guide/09-example.md?raw";
 
+import { fnv1aHash } from "@/utils/hash";
+
 export const GUIDE_INDEX = guideIndex;
 
 export const GUIDE_SECTIONS: Record<string, string> = {
@@ -47,6 +49,26 @@ export const GUIDE_SECTIONS: Record<string, string> = {
   "08d-layout-templates.md": guide08d,
   "09-example.md": guide09,
 };
+
+/**
+ * Content-based version of the bundled guide files. Computed at module load
+ * from the actual bundled content, so ANY edit to a guide file automatically
+ * produces a new version — no manual bump needed.
+ *
+ * Adapters (fsAccess / deckApi) compare this to the version stored in the
+ * project's docs/.guide-version file and re-sync on mismatch.
+ */
+export const GUIDE_VERSION: string = computeGuideVersion();
+
+function computeGuideVersion(): string {
+  // Hash the root guide plus every section name+content, in deterministic order
+  const parts: string[] = [guideIndex];
+  const keys = Object.keys(GUIDE_SECTIONS).sort();
+  for (const k of keys) {
+    parts.push(k, GUIDE_SECTIONS[k]!);
+  }
+  return fnv1aHash(parts.join("\0")).toString(16);
+}
 
 export function readGuide(section: string): string {
   // Allow with or without .md extension, and partial matching

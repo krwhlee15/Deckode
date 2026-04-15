@@ -5,6 +5,7 @@ import { saveHandle, clearHandle } from "@/utils/handleStore";
 import { generateBlankDeck, generateWizardDeck } from "@/utils/projectTemplates";
 import { assert } from "@/utils/assert";
 import { fnv1aHash } from "@/utils/hash";
+import { GUIDE_VERSION } from "@/ai/guides";
 
 // Bundled template data for prod/FS Access mode (no server available)
 import exampleDeck from "../../templates/default/deck.json";
@@ -172,6 +173,7 @@ export class FsAccessAdapter implements FileSystemAdapter {
     for (const [name, content] of Object.entries(BUNDLED_GUIDE_FILES)) {
       await writeTextFile(guideDir, name, content);
     }
+    await writeTextFile(docsDir, ".guide-version", GUIDE_VERSION);
 
     // Standalone validator CLI at the project root. Agentic tools
     // run `node tekkal-validate.mjs deck.json` and parse the report
@@ -193,7 +195,47 @@ export class FsAccessAdapter implements FileSystemAdapter {
       throw new Error(`Invalid JSON in deck.json: ${msg}`);
     }
     await this.resolveSlideRefs(deck);
+    // Fire-and-forget guide sync: fails silently on permission issues so
+    // loadDeck never blocks on doc updates.
+    this.syncGuideDocs().catch((e) => console.warn("[fsAccess] guide sync failed:", e));
     return deck;
+  }
+
+  /**
+   * If the project's `docs/.guide-version` doesn't match the bundled
+   * GUIDE_VERSION, delete the entire `docs/guide/` folder and rewrite
+   * everything (tekkal-guide.md, example-deck.json, guide/*.md).
+   * Keeps AI-discoverable docs current as the app ships new guide revisions.
+   */
+  private async syncGuideDocs(): Promise<void> {
+    let docsDir: FileSystemDirectoryHandle;
+    try {
+      docsDir = await this.dirHandle.getDirectoryHandle("docs", { create: true });
+    } catch {
+      return;
+    }
+
+    // Read existing version
+    let currentVersion = "";
+    try {
+      const vh = await docsDir.getFileHandle(".guide-version");
+      currentVersion = (await (await vh.getFile()).text()).trim();
+    } catch { /* missing — treat as outdated */ }
+
+    if (currentVersion === GUIDE_VERSION) return;
+
+    // Remove the whole guide/ subfolder, then rewrite
+    try {
+      await docsDir.removeEntry("guide", { recursive: true });
+    } catch { /* didn't exist */ }
+
+    await writeTextFile(docsDir, "tekkal-guide.md", aiGuideText);
+    await writeTextFile(docsDir, "example-deck.json", exampleDeckRaw);
+    const guideDir = await docsDir.getDirectoryHandle("guide", { create: true });
+    for (const [name, content] of Object.entries(BUNDLED_GUIDE_FILES)) {
+      await writeTextFile(guideDir, name, content);
+    }
+    await writeTextFile(docsDir, ".guide-version", GUIDE_VERSION);
   }
 
   /** Resolve `{ "$ref": "./slides/foo.json" }` entries by reading from the directory handle.

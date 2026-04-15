@@ -43,6 +43,86 @@ function assetsDir(project: string): string {
   return path.resolve(projectDir(project), "assets");
 }
 
+/** FNV-1a 32-bit hash — must match src/utils/hash.ts. */
+function fnv1aHashNode(str: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return h >>> 0;
+}
+
+/**
+ * Compute the guide content version by hashing the root guide and every
+ * guide/*.md file in deterministic order. Must match the browser-side
+ * computeGuideVersion() in src/ai/guides.ts so both adapters produce
+ * identical hashes for the same files.
+ */
+function computeBundledGuideVersion(): string {
+  const sourceDocs = path.resolve(process.cwd(), "docs");
+  const rootGuide = path.resolve(sourceDocs, "tekkal-guide.md");
+  const guideDir = path.resolve(sourceDocs, "guide");
+
+  const indexContent = fs.existsSync(rootGuide)
+    ? fs.readFileSync(rootGuide, "utf-8")
+    : "";
+
+  const parts: string[] = [indexContent];
+  if (fs.existsSync(guideDir)) {
+    const files = fs.readdirSync(guideDir).filter((f) => f.endsWith(".md")).sort();
+    for (const f of files) {
+      parts.push(f, fs.readFileSync(path.resolve(guideDir, f), "utf-8"));
+    }
+  }
+  return fnv1aHashNode(parts.join("\0")).toString(16);
+}
+
+/**
+ * If the project's `docs/.guide-version` is missing or doesn't match the
+ * current bundled content hash, delete `docs/guide/` and rewrite everything
+ * (tekkal-guide.md, example-deck.json, guide/*.md).
+ */
+function syncGuideDocs(projectRoot: string): void {
+  try {
+    const bundledVersion = computeBundledGuideVersion();
+    const projectDocs = path.resolve(projectRoot, "docs");
+    const projectVersionFile = path.resolve(projectDocs, ".guide-version");
+
+    let currentVersion = "";
+    if (fs.existsSync(projectVersionFile)) {
+      currentVersion = fs.readFileSync(projectVersionFile, "utf-8").trim();
+    }
+    if (currentVersion === bundledVersion) return;
+
+    // Ensure project docs dir exists
+    fs.mkdirSync(projectDocs, { recursive: true });
+
+    // Remove the entire guide/ subfolder and rewrite
+    const projectGuideDir = path.resolve(projectDocs, "guide");
+    if (fs.existsSync(projectGuideDir)) {
+      fs.rmSync(projectGuideDir, { recursive: true, force: true });
+    }
+
+    const sourceDocs = path.resolve(process.cwd(), "docs");
+    const tekkalSource = path.resolve(sourceDocs, "tekkal-guide.md");
+    if (fs.existsSync(tekkalSource)) {
+      fs.copyFileSync(tekkalSource, path.resolve(projectDocs, "tekkal-guide.md"));
+    }
+    const exampleSource = path.resolve(sourceDocs, "example-deck.json");
+    if (fs.existsSync(exampleSource)) {
+      fs.copyFileSync(exampleSource, path.resolve(projectDocs, "example-deck.json"));
+    }
+    const guideSource = path.resolve(sourceDocs, "guide");
+    if (fs.existsSync(guideSource)) {
+      fs.cpSync(guideSource, projectGuideDir, { recursive: true });
+    }
+    fs.writeFileSync(projectVersionFile, bundledVersion);
+  } catch (e) {
+    console.warn("[deckApi] guide sync failed:", e);
+  }
+}
+
 function isValidProjectName(name: string): boolean {
   return /^[a-zA-Z0-9_-]+$/.test(name);
 }
@@ -452,6 +532,8 @@ export function deckApiPlugin(): Plugin {
         if (fs.existsSync(guideDir)) {
           fs.cpSync(guideDir, path.resolve(docsDir, "guide"), { recursive: true });
         }
+        // Stamp the current content hash so future loads don't re-sync unnecessarily
+        fs.writeFileSync(path.resolve(docsDir, ".guide-version"), computeBundledGuideVersion());
 
         jsonResponse(res, 200, { ok: true, name });
       });
@@ -477,6 +559,8 @@ export function deckApiPlugin(): Plugin {
           jsonResponse(res, 404, { error: "deck.json not found" });
           return;
         }
+        // Sync AI guide docs if the project's version is stale
+        syncGuideDocs(path.dirname(filePath));
         // Migrate legacy absolute asset paths → relative ./assets/... on first load
         rewriteAssetUrls(filePath, project);
         const raw = fs.readFileSync(filePath, "utf-8");

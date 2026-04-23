@@ -482,6 +482,7 @@ export function deckApiPlugin(): Plugin {
         fs.mkdirSync(dir, { recursive: true });
 
         const templateKind: string = body.template ?? "example";
+        const demoId: string | undefined = typeof body.demoId === "string" ? body.demoId : undefined;
         let deck: any;
 
         if (templateKind === "wizard" && body.wizard) {
@@ -494,8 +495,20 @@ export function deckApiPlugin(): Plugin {
             deck.meta = deck.meta ?? {};
             deck.meta.title = body.title;
           }
+        } else if (demoId) {
+          // Pick one of the curated demos under templates/demos/<id>/
+          // Whitelist against ../ traversal (demoId is a user-supplied string
+          // delivered over the API; only allow [a-z0-9-]).
+          assert(/^[a-z0-9-]+$/.test(demoId), `Invalid demoId "${demoId}"`);
+          const demoPath = path.resolve(process.cwd(), TEMPLATES_DIR, "demos", demoId, DECK_FILENAME);
+          assert(fs.existsSync(demoPath), `Demo "${demoId}" not found`);
+          deck = JSON.parse(fs.readFileSync(demoPath, "utf-8"));
+          if (body.title) {
+            deck.meta = deck.meta ?? {};
+            deck.meta.title = body.title;
+          }
         } else {
-          // "example" — current default behavior
+          // Legacy "example" fall-back (no demoId) — use bundled default deck.
           const templatePath = path.resolve(process.cwd(), TEMPLATES_DIR, "default", DECK_FILENAME);
           assert(fs.existsSync(templatePath), "Default template not found");
           deck = JSON.parse(fs.readFileSync(templatePath, "utf-8"));

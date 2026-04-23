@@ -2,6 +2,8 @@ import { useState } from "react";
 import type { TemplateKind, WizardConfig, NewProjectConfig } from "@/utils/projectTemplates";
 import { DARK_THEME, LIGHT_THEME } from "@/utils/projectTemplates";
 import { assert } from "@/utils/assert";
+import { DEMO_CATALOG, type DemoEntry } from "@/demos/catalog";
+import { SlidePreview, useFirstSlide } from "./DemoGallery";
 
 interface Props {
   open: boolean;
@@ -10,7 +12,7 @@ interface Props {
   showNameField: boolean;
 }
 
-type Step = "template" | "wizard";
+type Step = "template" | "demo" | "wizard";
 
 export function NewProjectWizard({ open, onClose, onConfirm, showNameField }: Props) {
   const [step, setStep] = useState<Step>("template");
@@ -49,8 +51,22 @@ export function NewProjectWizard({ open, onClose, onConfirm, showNameField }: Pr
       assert(projectName.trim().length > 0, "Project name is required");
       assert(/^[a-zA-Z0-9_-]+$/.test(projectName.trim()), "Project name: letters, digits, hyphens, underscores only");
     }
-    // Blank and Example proceed directly
+    // Blank proceeds directly. "example" now goes to the demo picker so
+    // the user can choose which of the 5 curated decks to seed from.
+    if (kind === "example") {
+      setStep("demo");
+      return;
+    }
     onConfirm({ template: kind, name: showNameField ? projectName.trim() : undefined });
+    reset();
+  };
+
+  const handleDemoSelect = (demoId: string) => {
+    onConfirm({
+      template: "example",
+      name: showNameField ? projectName.trim() : undefined,
+      demoId,
+    });
     reset();
   };
 
@@ -77,7 +93,9 @@ export function NewProjectWizard({ open, onClose, onConfirm, showNameField }: Pr
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={handleClose}>
       <div
-        className="bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl w-full max-w-xl p-6"
+        className={`bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl w-full p-6 ${
+          step === "demo" ? "max-w-4xl" : "max-w-xl"
+        }`}
         onClick={(e) => e.stopPropagation()}
       >
         {step === "template" && (
@@ -109,8 +127,8 @@ export function NewProjectWizard({ open, onClose, onConfirm, showNameField }: Pr
               </TemplateCard>
 
               <TemplateCard
-                title="Example"
-                description="7-slide demo deck"
+                title="From demo"
+                description={`Pick one of ${DEMO_CATALOG.length} decks`}
                 disabled={showNameField && !projectName.trim()}
                 onClick={() => handleTemplateSelect("example")}
               >
@@ -125,6 +143,38 @@ export function NewProjectWizard({ open, onClose, onConfirm, showNameField }: Pr
               >
                 <WizardPreview />
               </TemplateCard>
+            </div>
+
+            <div className="mt-5 flex justify-end">
+              <button onClick={handleClose} className="px-4 py-2 text-sm text-zinc-400 hover:text-zinc-200 transition-colors">
+                Cancel
+              </button>
+            </div>
+          </>
+        )}
+
+        {step === "demo" && (
+          <>
+            <div className="flex items-center gap-2 mb-4">
+              <button
+                onClick={() => setStep("template")}
+                className="text-zinc-400 hover:text-zinc-200 transition-colors"
+                title="Back"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                </svg>
+              </button>
+              <div>
+                <h2 className="text-lg font-bold text-zinc-100">Choose a demo</h2>
+                <p className="text-xs text-zinc-500">Seed your project from one of {DEMO_CATALOG.length} curated decks. You can edit everything after.</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              {DEMO_CATALOG.map((entry) => (
+                <DemoSelectCard key={entry.id} entry={entry} onSelect={() => handleDemoSelect(entry.id)} />
+              ))}
             </div>
 
             <div className="mt-5 flex justify-end">
@@ -270,6 +320,34 @@ function TemplateCard({
         <p className="text-sm font-medium text-zinc-200">{title}</p>
         <p className="text-[11px] text-zinc-500">{description}</p>
       </div>
+    </button>
+  );
+}
+
+function DemoSelectCard({ entry, onSelect }: { entry: DemoEntry; onSelect: () => void }) {
+  const { slide, theme } = useFirstSlide(entry);
+  return (
+    <button
+      onClick={onSelect}
+      className="group flex flex-col gap-2 text-left rounded-lg border border-zinc-700 bg-zinc-800/50 p-2.5 transition-colors hover:border-zinc-500 hover:bg-zinc-800"
+    >
+      <div className="relative overflow-hidden rounded border border-zinc-700 bg-white">
+        {slide ? (
+          <SlidePreview slide={slide} theme={theme} width={220} />
+        ) : (
+          <div style={{ width: 220, height: 124 }} className="flex items-center justify-center text-[10px] text-zinc-400">
+            Loading preview…
+          </div>
+        )}
+        <div className="absolute inset-0 flex items-center justify-center bg-zinc-950/0 opacity-0 transition-opacity group-hover:bg-zinc-950/60 group-hover:opacity-100">
+          <span className="text-xs font-medium text-white">Use this demo →</span>
+        </div>
+      </div>
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="text-[13px] font-medium text-zinc-100">{entry.title}</span>
+        <span className="text-[9px] uppercase tracking-wider text-zinc-500">{entry.category}</span>
+      </div>
+      <p className="line-clamp-2 text-[11px] text-zinc-400">{entry.subtitle}</p>
     </button>
   );
 }

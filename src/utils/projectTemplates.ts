@@ -17,6 +17,13 @@ export interface NewProjectConfig {
   name?: string;
   title?: string;
   wizard?: WizardConfig;
+  /**
+   * For `template: "example"`, the id of a demo in `DEMO_CATALOG`
+   * (e.g. "economics", "cv"). When set, the new project is seeded
+   * from `templates/demos/<demoId>/deck.json` instead of the legacy
+   * `templates/default/deck.json`.
+   */
+  demoId?: string;
 }
 
 // ----- Theme Presets -----

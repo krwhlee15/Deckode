@@ -58,6 +58,57 @@ This convention lets the deck summarizer extract slide titles without ambiguity 
 | `lineHeight` | number | `1.5` | Line height multiplier |
 | `verticalAlign` | `"top"` \| `"middle"` \| `"bottom"` | `"top"` | Vertical alignment within the box |
 
+### Sizing and alignment for math-bearing text
+
+KaTeX renders with a fixed pixel height — it does NOT participate in the flex-fit
+shrinking that plain text does. Getting math to look right depends on picking
+the right `size.h` and `verticalAlign` up front.
+
+**Vertical alignment.** Text elements default to `verticalAlign: "top"`, which
+shoves display math (`$$...$$`) against the upper edge of the box and leaves
+dead space below. **For any text element whose primary content is a display
+formula, set `verticalAlign: "middle"` so the formula is centered vertically.**
+Mixed prose + inline math is usually fine at `"top"`.
+
+```jsonc
+// Good: display formula gets vertical centering
+{
+  "type": "text",
+  "content": "$$ Y = C + I + G + (X - M) $$",
+  "size": { "w": 840, "h": 80 },
+  "style": { "fontSize": 28, "verticalAlign": "middle", "textAlign": "center" }
+}
+```
+
+**Height budget.** Rough rule of thumb for `size.h` of a single display
+formula element (`$$...$$`):
+
+| Math complexity                         | Minimum `size.h` (relative to `fontSize`) |
+|-----------------------------------------|-------------------------------------------|
+| Plain `E = mc^2`, `a + b`, `\pi`        | ~1.5 × fontSize                            |
+| With super/subscripts (`x^2`, `a_n`)    | ~1.8 × fontSize                            |
+| With fractions (`\frac{a}{b}`), integrals (`\int`), sums (`\sum`), derivatives (`\partial`), hats (`\hat{H}`) | **~2.2–2.5 × fontSize** |
+| Stacked structures (`\frac{\frac{.}{.}}{.}`, `\begin{pmatrix}...`) | ~3.0 × fontSize or more |
+
+Under-sizing clips the fraction bar or the matrix bracket; over-sizing just
+wastes vertical space. When in doubt, round up.
+
+```jsonc
+// fontSize 28 · formula contains \frac{\partial}{\partial t}
+// → h should be at least 28 × 2.2 ≈ 62; set 80+ for safety
+{
+  "type": "text",
+  "content": "$$ i\\hbar \\frac{\\partial}{\\partial t} \\Psi = \\hat{H}\\Psi $$",
+  "size": { "w": 840, "h": 90 },
+  "style": { "fontSize": 28, "verticalAlign": "middle", "textAlign": "center" }
+}
+```
+
+**Do not rely on flex-fit for math.** Math elements force `textSizing: "fixed"`
+automatically (the renderer detects `$` in content). If the formula doesn't fit,
+the renderer will NOT shrink the font — it will clip. Pick the right `size.h`
+instead.
+
 
 ## `"code"`
 

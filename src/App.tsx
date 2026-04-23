@@ -15,33 +15,13 @@ import { restoreHandle, clearHandle, setTabProject, skipNextRestore } from "@/ut
 import type { FileSystemAdapter } from "@/adapters/types";
 import { FsAccessAdapter } from "@/adapters/fsAccess";
 import { ProjectLoadErrorBoundary } from "@/components/ProjectLoadErrorBoundary";
-import { normalizeDeckLegacyFields, type Deck } from "@/types/deck";
+import { type Deck } from "@/types/deck";
 import { assert } from "@/utils/assert";
 import { fnv1aHash } from "@/utils/hash";
 
+import { DEMO_CATALOG, getDemoById, DEFAULT_DEMO_ID } from "@/demos/catalog";
+
 const IS_DEV = import.meta.env.DEV;
-
-// Eagerly bundle external slide files for the ?demo mode
-const demoSlideFiles: Record<string, unknown> = import.meta.glob(
-  "../templates/default/slides/*.json",
-  { eager: true, import: "default" },
-);
-
-/** Resolve $ref entries in a deck using a lookup map keyed by ref path. */
-function resolveSlideRefsFromMap(deck: Deck, basePath: string, fileMap: Record<string, unknown>): Deck {
-  const resolved = structuredClone(deck);
-  for (let i = 0; i < resolved.slides.length; i++) {
-    const entry = resolved.slides[i] as any;
-    if (entry.$ref && typeof entry.$ref === "string") {
-      const key = basePath + entry.$ref.replace("./", "");
-      const data = fileMap[key];
-      if (data) {
-        resolved.slides[i] = data as any;
-      }
-    }
-  }
-  return resolved;
-}
 
 export function App() {
   const currentProject = useDeckStore((s) => s.currentProject);
@@ -88,12 +68,17 @@ export function App() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
 
-    // ?demo → load bundled template deck
+    // ?demo=<id> → load one of the bundled demo decks by id.
+    // Bare ?demo (no id) falls back to the default product intro.
     if (params.has("demo")) {
+      const id = params.get("demo") || DEFAULT_DEMO_ID;
+      const entry = getDemoById(id) ?? getDemoById(DEFAULT_DEMO_ID);
+      if (!entry) {
+        setLoadError(`Unknown demo "${id}". Available: ${DEMO_CATALOG.map((d) => d.id).join(", ")}`);
+        return;
+      }
       setLoading(true);
-      import("../templates/default/deck.json").then((mod) => {
-        const rawDeck = normalizeDeckLegacyFields(mod.default);
-        const deck = resolveSlideRefsFromMap(rawDeck, "../templates/default/", demoSlideFiles);
+      entry.loadDeck().then((deck) => {
         const assetBaseUrl = import.meta.env.BASE_URL + "demo-assets";
         const readOnlyAdapter = ReadOnlyAdapter.fromBundled(deck, assetBaseUrl);
         openReadOnly(readOnlyAdapter);

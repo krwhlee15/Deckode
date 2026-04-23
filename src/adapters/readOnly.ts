@@ -11,6 +11,12 @@ export class ReadOnlyAdapter implements FileSystemAdapter {
   private deck: Deck;
   readonly assetBaseUrl: string;
   assetMap?: Record<string, string>;
+  /**
+   * In-memory cache of TikZ-compiled SVGs. Demos can't persist to disk,
+   * so we stash blob URLs here and let resolveAssetUrl read from the
+   * map. Survives for the lifetime of the adapter (one tab session).
+   */
+  private tikzBlobCache = new Map<string, string>();
 
   constructor(projectName: string, deck: Deck, assetBaseUrl: string) {
     this.projectName = projectName;
@@ -43,6 +49,8 @@ export class ReadOnlyAdapter implements FileSystemAdapter {
   }
 
   resolveAssetUrl(path: string): string {
+    const cachedBlob = this.tikzBlobCache.get(path);
+    if (cachedBlob) return cachedBlob;
     if (this.assetMap?.[path]) return this.assetMap[path]!;
     if (path.startsWith("./assets/")) {
       return `${this.assetBaseUrl}/${path.slice(9)}`;
@@ -50,12 +58,31 @@ export class ReadOnlyAdapter implements FileSystemAdapter {
     return path;
   }
 
+  /**
+   * Compile TikZ to SVG via the bundled TikZJax WASM engine (same path
+   * FsAccessAdapter uses for static prod mode). The output can't be
+   * persisted — we're readonly — so we stash the blob URL in an
+   * in-memory cache keyed by a synthetic asset path and resolveAssetUrl
+   * serves it back. That lets the standard `isSvgFresh(el)` render
+   * path fire without the adapter needing write access.
+   */
   async renderTikz(
-    _elementId: string,
-    _content: string,
-    _preamble?: string,
+    elementId: string,
+    content: string,
+    preamble?: string,
   ): Promise<{ ok: true; svgUrl: string } | { ok: false; error: string }> {
-    return { ok: false, error: "TikZ rendering is not available in read-only mode" };
+    try {
+      const { renderTikzToSvg } = await import("@/utils/tikzjax");
+      const svgMarkup = await renderTikzToSvg(content, preamble);
+      const basePath = `./assets/tikz/${elementId}.svg`;
+      const storedPath = `${basePath}?v=${Date.now()}`;
+      const blob = new Blob([svgMarkup], { type: "image/svg+xml" });
+      const blobUrl = URL.createObjectURL(blob);
+      this.tikzBlobCache.set(storedPath, blobUrl);
+      return { ok: true, svgUrl: storedPath };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
   }
 
   async listComponents(): Promise<string[]> {

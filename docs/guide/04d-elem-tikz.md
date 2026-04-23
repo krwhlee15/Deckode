@@ -41,6 +41,46 @@ Renders a TikZ/PGFPlots diagram via a WASM-based TeX engine (compiled entirely i
 }
 ```
 
+## Where TikZ renders
+
+TikZ is compiled by one of three backends depending on the adapter in use:
+
+| Mode | Adapter | Engine | Persists SVG? |
+|------|---------|--------|----------------|
+| `npm run dev` | `ViteApiAdapter` | Server-side `latex` + `dvisvgm` | ✅ writes `assets/tikz/<id>.svg` in the project dir |
+| Static / FS Access | `FsAccessAdapter` | Client-side TikZJax WASM | ✅ writes `assets/tikz/<id>.svg` via File System Access API |
+| `?demo=<id>` / `?gh=...` | `ReadOnlyAdapter` | Client-side TikZJax WASM | ❌ in-memory blob cache (lost on reload) |
+
+In **all three** paths the `useTikzAutoRender` hook picks up any TikZ element
+whose `svgUrl` / `renderedContent` is missing or stale and fires compilation.
+You don't need to save the project first — opening the deck is enough to
+trigger rendering.
+
+**Caveats:**
+- First-render latency is ~1–3 s per TikZ element on a cold WASM engine.
+  Subsequent compiles on the same page are much faster.
+- `ReadOnlyAdapter` can't persist — every tab reload re-compiles from source.
+  Fine for demos, bad for a 40-slide deck.
+- Bundled WASM assets live at `public/tikzjax/` (copied from
+  `@drgrice1/tikzjax` via `postinstall`). If the bundle is missing the engine
+  will 404 and rendering fails silently.
+
+## When to use native elements instead
+
+Even though TikZ renders everywhere, reach for native `shape` + `text` first
+when it fits. Native elements give you per-element animations, sharper
+snapping to the 960×540 grid, and skip the compile latency entirely.
+
+- Flow diagrams → `shape` (rectangle/ellipse) + `text` + `shape: "arrow"` waypoints
+- Bar charts → a row of `shape: "rectangle"` sized proportionally, plus text labels
+- Line/scatter plots → `shape: "line"`/`"arrow"` with multi-point `style.waypoints`
+- Math → `text` with `$$...$$` (KaTeX — renders anywhere without compilation)
+
+Reserve TikZ for cases where native elements genuinely fall short: smooth
+curves (PGFPlots `\addplot[domain=...]`), complex Bézier paths, mathematical
+plots with typeset axis labels, or elaborate TikZ-library features like
+`calc`, `intersections`, and `decorations`.
+
 ## JSON Escaping (CRITICAL)
 
 TikZ content is stored inside a JSON string. **Every backslash `\` in LaTeX MUST be written as `\\` in JSON.**

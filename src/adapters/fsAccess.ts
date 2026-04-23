@@ -145,8 +145,17 @@ export class FsAccessAdapter implements FileSystemAdapter {
       deck = generateWizardDeck(config.wizard);
     } else if (config.template === "blank") {
       deck = generateBlankDeck(config.title);
+    } else if (config.demoId) {
+      // Pick one of the curated demos from the DEMO_CATALOG (async load).
+      const { getDemoById } = await import("@/demos/catalog");
+      const entry = getDemoById(config.demoId);
+      assert(entry !== undefined, `Unknown demoId "${config.demoId}"`);
+      deck = normalizeDeckLegacyFields(await entry.loadDeck());
+      if (config.title) {
+        deck.meta.title = config.title;
+      }
     } else {
-      // "example" — use bundled default deck
+      // Legacy "example" with no demoId — fall back to the bundled default deck.
       deck = normalizeDeckLegacyFields(JSON.parse(JSON.stringify(exampleDeck)));
       if (config.title) {
         deck.meta.title = config.title;

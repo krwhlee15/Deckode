@@ -18,6 +18,7 @@ import {
 } from "@/utils/api";
 import { NewProjectWizard } from "./NewProjectWizard";
 import { GitHubDialog } from "./GitHubDialog";
+import { DemoGallery } from "./DemoGallery";
 import type { FileSystemAdapter } from "@/adapters/types";
 import type { ProjectInfo } from "@/utils/api";
 import type { NewProjectConfig } from "@/utils/projectTemplates";
@@ -207,7 +208,7 @@ function ViteProjectSelector({ onAdapterReady }: { onAdapterReady: (adapter: Fil
 
   return (
     <div className="min-h-screen w-screen flex items-center justify-center bg-zinc-950 text-white">
-      <div className="w-full max-w-lg px-6">
+      <div className="w-full max-w-5xl px-6">
         <h1 className="text-2xl font-bold text-zinc-100 mb-6">TEKKAL Projects</h1>
 
         {projects.length === 0 && (
@@ -331,7 +332,7 @@ function ViteProjectSelector({ onAdapterReady }: { onAdapterReady: (adapter: Fil
         )}
 
         {/* New project */}
-        <div className="border border-zinc-800 rounded-lg p-4 bg-zinc-900">
+        <div className="border border-zinc-800 rounded-lg p-4 bg-zinc-900 mb-6">
           <h2 className="text-sm font-semibold text-zinc-300 mb-3">New Project</h2>
           <div className="flex gap-2">
             <button
@@ -340,12 +341,6 @@ function ViteProjectSelector({ onAdapterReady }: { onAdapterReady: (adapter: Fil
               className="flex-1 px-4 py-2.5 rounded bg-blue-600 text-sm text-white hover:bg-blue-500 disabled:opacity-40 transition-colors"
             >
               {creating ? "Creating..." : "Create New Project"}
-            </button>
-            <button
-              onClick={() => { window.location.search = "?demo"; }}
-              className="px-4 py-2.5 rounded bg-zinc-700 border border-zinc-600 text-sm text-zinc-200 hover:bg-zinc-600 transition-colors"
-            >
-              Try Demo
             </button>
             <button
               onClick={() => setGhDialogOpen(true)}
@@ -361,6 +356,8 @@ function ViteProjectSelector({ onAdapterReady }: { onAdapterReady: (adapter: Fil
             </button>
           </div>
         </div>
+
+        <DemoGallery />
       </div>
 
       <NewProjectWizard
@@ -517,7 +514,7 @@ function FsAccessProjectSelector({ onAdapterReady }: { onAdapterReady: (adapter:
 
   return (
     <div className="min-h-screen w-screen flex items-center justify-center bg-zinc-950 text-white">
-      <div className="w-full max-w-lg px-6">
+      <div className="w-full max-w-5xl px-6">
         <h1 className="text-2xl font-bold text-zinc-100 mb-2 text-center">TEKKAL</h1>
         <p className="text-sm text-zinc-400 mb-6 text-center">
           Open an existing project or create a new one.
@@ -536,12 +533,6 @@ function FsAccessProjectSelector({ onAdapterReady }: { onAdapterReady: (adapter:
             className="px-6 py-3 rounded-lg bg-blue-600 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-40 transition-colors"
           >
             {creating ? "Creating..." : "New Project"}
-          </button>
-          <button
-            onClick={() => { window.location.search = "?demo"; }}
-            className="px-6 py-3 rounded-lg bg-zinc-800 border border-zinc-600 text-sm font-medium text-zinc-200 hover:border-zinc-400 hover:bg-zinc-700 transition-colors"
-          >
-            Try Demo
           </button>
           <button
             onClick={() => setGhDialogOpen(true)}
@@ -615,6 +606,10 @@ function FsAccessProjectSelector({ onAdapterReady }: { onAdapterReady: (adapter:
             {error}
           </div>
         )}
+
+        <div className="mt-6">
+          <DemoGallery />
+        </div>
 
         <p className="mt-6 text-xs text-zinc-600 text-center">
           Static mode — file changes are saved directly to your local folder via the File System Access API.

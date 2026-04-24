@@ -1,30 +1,41 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Deck, Slide, DeckTheme } from "@/types/deck";
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from "@/types/deck";
 import { SlideRenderer } from "./renderer/SlideRenderer";
 import { DEMO_CATALOG, type DemoEntry } from "@/demos/catalog";
 
 /**
- * Scaled-down render of a slide's first page, locked at a fixed
- * display width. Internally renders at 960x540 and shrinks via the
- * SlideRenderer's own `scale` prop — preserving typographic fidelity
- * (fonts, spacing, shape strokes) instead of bitmap blurring.
+ * Responsive scaled-down render of a slide's first page. Fills its
+ * container's width, holds a 16:9 aspect ratio, and computes a
+ * transform scale from the measured width so the inner 960×540 canvas
+ * shrinks exactly to fit — no letterboxing, no side whitespace.
  */
 interface SlidePreviewProps {
   slide: Slide;
   theme?: DeckTheme;
-  width: number;
 }
 
-export function SlidePreview({ slide, theme, width }: SlidePreviewProps) {
-  const scale = width / CANVAS_WIDTH;
-  const height = CANVAS_HEIGHT * scale;
+export function SlidePreview({ slide, theme }: SlidePreviewProps) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(0);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const update = () => setScale(el.clientWidth / CANVAS_WIDTH);
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
   return (
     <div
-      className="bg-white overflow-hidden rounded-sm"
-      style={{ width, height }}
+      ref={ref}
+      className="w-full bg-white overflow-hidden rounded-sm"
+      style={{ aspectRatio: `${CANVAS_WIDTH} / ${CANVAS_HEIGHT}` }}
     >
-      <SlideRenderer slide={slide} scale={scale} theme={theme} thumbnail />
+      {scale > 0 && <SlideRenderer slide={slide} scale={scale} theme={theme} thumbnail />}
     </div>
   );
 }
@@ -61,9 +72,12 @@ function DemoCard({ entry }: { entry: DemoEntry }) {
     >
       <div className="relative overflow-hidden rounded border border-zinc-800 bg-white">
         {slide ? (
-          <SlidePreview slide={slide} theme={theme} width={280} />
+          <SlidePreview slide={slide} theme={theme} />
         ) : (
-          <div style={{ width: 280, height: (280 * CANVAS_HEIGHT) / CANVAS_WIDTH }} className="flex items-center justify-center text-[10px] text-zinc-400">
+          <div
+            className="flex w-full items-center justify-center text-[10px] text-zinc-400"
+            style={{ aspectRatio: `${CANVAS_WIDTH} / ${CANVAS_HEIGHT}` }}
+          >
             Loading preview…
           </div>
         )}

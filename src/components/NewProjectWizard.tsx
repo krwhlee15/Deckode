@@ -333,9 +333,12 @@ function DemoSelectCard({ entry, onSelect }: { entry: DemoEntry; onSelect: () =>
     >
       <div className="relative overflow-hidden rounded border border-zinc-700 bg-white">
         {slide ? (
-          <SlidePreview slide={slide} theme={theme} width={220} />
+          <SlidePreview slide={slide} theme={theme} />
         ) : (
-          <div style={{ width: 220, height: 124 }} className="flex items-center justify-center text-[10px] text-zinc-400">
+          <div
+            className="flex w-full items-center justify-center text-[10px] text-zinc-400"
+            style={{ aspectRatio: "960 / 540" }}
+          >
             Loading preview…
           </div>
         )}

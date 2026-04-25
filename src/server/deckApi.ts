@@ -127,6 +127,26 @@ function isValidProjectName(name: string): boolean {
   return /^[a-zA-Z0-9_-]+$/.test(name);
 }
 
+/**
+ * Walk a deck and collect every relative path it references via `./assets/...`.
+ * Used when forking a demo so we can copy the referenced files into the new
+ * project's own assets/ directory.
+ */
+function collectAssetRefs(node: unknown, out: Set<string> = new Set()): Set<string> {
+  if (typeof node === "string") {
+    if (node.startsWith("./assets/")) out.add(node.slice("./assets/".length));
+    return out;
+  }
+  if (Array.isArray(node)) {
+    for (const x of node) collectAssetRefs(x, out);
+    return out;
+  }
+  if (node && typeof node === "object") {
+    for (const v of Object.values(node)) collectAssetRefs(v, out);
+  }
+  return out;
+}
+
 function getProjectParam(req: IncomingMessage): string {
   const url = new URL(req.url ?? "/", "http://localhost");
   const project = url.searchParams.get("project");
@@ -530,6 +550,28 @@ export function deckApiPlugin(): Plugin {
         const projectAssetsDir = path.resolve(dir, "assets");
         if (!fs.existsSync(projectAssetsDir)) {
           fs.mkdirSync(projectAssetsDir, { recursive: true });
+        }
+
+        // When forking a demo, the deck references images via `./assets/<file>`.
+        // Demos resolve those to public/demo-assets/, but a fresh project resolves
+        // them to its own assets/ folder — so we have to copy each referenced file
+        // over, otherwise images render as broken links.
+        if (demoId) {
+          const referencedAssets = collectAssetRefs(deck);
+          const sources = [
+            path.resolve(process.cwd(), TEMPLATES_DIR, "demos", demoId, "assets"),
+            path.resolve(process.cwd(), "public", "demo-assets"),
+          ];
+          for (const rel of referencedAssets) {
+            for (const src of sources) {
+              const candidate = path.resolve(src, rel);
+              if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
+                fs.mkdirSync(path.dirname(path.resolve(projectAssetsDir, rel)), { recursive: true });
+                fs.copyFileSync(candidate, path.resolve(projectAssetsDir, rel));
+                break;
+              }
+            }
+          }
         }
 
         // Copy layouts into the project

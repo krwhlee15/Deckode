@@ -79,7 +79,13 @@ export class FsAccessAdapter implements FileSystemAdapter {
   get blobUrlCache(): ReadonlyMap<string, string> {
     return this.blobUrlCache_;
   }
-  readonly projectName: string;
+  /** Folder rename via FileSystemDirectoryHandle.move() is Chrome-only.
+   *  Title rename works everywhere. */
+  get canRenameFolder(): boolean {
+    return typeof (this.dirHandle as unknown as { move?: (n: string) => Promise<void> }).move === "function";
+  }
+  private _projectName: string;
+  get projectName(): string { return this._projectName; }
   private _lastSaveHash: number | null = null;
   private _slideRefCache = new Map<string, string>();
 
@@ -94,7 +100,37 @@ export class FsAccessAdapter implements FileSystemAdapter {
 
   constructor(dirHandle: FileSystemDirectoryHandle) {
     this.dirHandle = dirHandle;
-    this.projectName = dirHandle.name;
+    this._projectName = dirHandle.name;
+  }
+
+  async renameProject(opts: { newName?: string; newTitle?: string }): Promise<{ name: string }> {
+    // 1. Title — rewrite deck.meta.title and save back.
+    if (typeof opts.newTitle === "string") {
+      const fileHandle = await this.dirHandle.getFileHandle("deck.json");
+      const file = await fileHandle.getFile();
+      const raw = JSON.parse(await file.text());
+      raw.meta = raw.meta ?? {};
+      raw.meta.title = opts.newTitle;
+      const writable = await fileHandle.createWritable();
+      const serialized = JSON.stringify(raw, null, 2);
+      this._lastSaveHash = fnv1aHash(serialized);
+      await writable.write(serialized);
+      await writable.close();
+    }
+
+    // 2. Folder name — only possible if the browser exposes dirHandle.move().
+    if (typeof opts.newName === "string" && opts.newName !== this._projectName) {
+      const handle = this.dirHandle as unknown as { move?: (n: string) => Promise<void> };
+      if (typeof handle.move !== "function") {
+        throw new Error(
+          "This browser cannot rename the project folder. Title was updated; rename the folder manually in your file system.",
+        );
+      }
+      await handle.move(opts.newName);
+      this._projectName = this.dirHandle.name;
+    }
+
+    return { name: this._projectName };
   }
 
   static async openDirectory(): Promise<FsAccessAdapter> {

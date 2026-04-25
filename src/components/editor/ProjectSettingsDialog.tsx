@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { renameProject } from "@/utils/api";
+import { renameProject as apiRenameProject } from "@/utils/api";
+import type { FileSystemAdapter } from "@/adapters/types";
 
 const STORAGE_KEY = "tekkal-project-paths";
 const LEGACY_STORAGE_KEY = "deckode-project-paths";
@@ -61,6 +62,12 @@ interface ProjectSettingsDialogProps {
   projectTitle?: string;
   /** Whether to show the local-path (git diff) section. Defaults to true. */
   showGitPath?: boolean;
+  /**
+   * If provided, rename runs through the adapter (so File System Access mode
+   * works in production). When omitted the dialog falls back to the dev API
+   * directly — used by the landing project list.
+   */
+  adapter?: FileSystemAdapter;
   onClose: () => void;
   /** Fires after a successful rename (folder and/or title). */
   onRenamed?: (result: { newName: string; newTitle: string | null }) => void;
@@ -72,10 +79,12 @@ export function ProjectSettingsDialog({
   projectName,
   projectTitle,
   showGitPath = true,
+  adapter,
   onClose,
   onRenamed,
   onPathSaved,
 }: ProjectSettingsDialogProps) {
+  const folderRenameSupported = adapter ? adapter.canRenameFolder : true;
   const [folderName, setFolderName] = useState(projectName);
   const [title, setTitle] = useState(projectTitle ?? "");
   const [pathValue, setPathValue] = useState("");
@@ -108,11 +117,14 @@ export function ProjectSettingsDialog({
       // 1. Rename on disk if folder or title changed
       let resolvedName = projectName;
       if (folderChanged || titleChanged) {
-        const { name } = await renameProject(projectName, {
+        const opts = {
           ...(folderChanged ? { newName: trimmedName } : {}),
           ...(titleChanged ? { newTitle: title } : {}),
-        });
-        resolvedName = name;
+        };
+        const result = adapter?.renameProject
+          ? await adapter.renameProject(opts)
+          : await apiRenameProject(projectName, opts);
+        resolvedName = result.name;
         moveStoredProjectPath(projectName, resolvedName);
         onRenamed?.({
           newName: resolvedName,
@@ -149,11 +161,14 @@ export function ProjectSettingsDialog({
           type="text"
           value={folderName}
           onChange={(e) => setFolderName(e.target.value)}
-          className="w-full bg-zinc-800 text-zinc-200 rounded px-3 py-2 text-xs border border-zinc-700 focus:border-zinc-500 focus:outline-none font-mono"
-          autoFocus
+          disabled={!folderRenameSupported}
+          className="w-full bg-zinc-800 text-zinc-200 rounded px-3 py-2 text-xs border border-zinc-700 focus:border-zinc-500 focus:outline-none font-mono disabled:opacity-60 disabled:cursor-not-allowed"
+          autoFocus={folderRenameSupported}
         />
         <p className="text-[10px] text-zinc-600 mt-1">
-          Letters, numbers, underscore, hyphen only.
+          {folderRenameSupported
+            ? "Letters, numbers, underscore, hyphen only."
+            : "This browser does not support folder rename — change the title above, or rename the folder manually."}
         </p>
 
         {projectTitle !== undefined && (

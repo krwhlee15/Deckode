@@ -17,6 +17,13 @@ export interface LayoutInfo {
   title: string;
 }
 
+export interface RenameProjectOptions {
+  /** New folder name. Only honored when canRenameFolder is true. */
+  newName?: string;
+  /** New display title (deck.meta.title). */
+  newTitle?: string;
+}
+
 export interface FileSystemAdapter {
   loadDeck(): Promise<Deck>;
   /** Save deck. Returns null on success, or the current disk Deck on conflict. */
@@ -24,6 +31,13 @@ export interface FileSystemAdapter {
   listProjects(): Promise<ProjectInfo[]>;
   createProject(name: string, config: NewProjectConfig): Promise<void>;
   deleteProject(name: string): Promise<void>;
+  /**
+   * Rename the current project. Mutates the adapter's `projectName` to the
+   * new value on success. Adapters that cannot rename throw.
+   */
+  renameProject?(opts: RenameProjectOptions): Promise<{ name: string }>;
+  /** Whether this adapter supports renaming the project folder (vs. title only). */
+  readonly canRenameFolder: boolean;
   uploadAsset(file: File): Promise<string>;
   resolveAssetUrl(path: string): string | undefined | Promise<string | undefined>;
   renderTikz(

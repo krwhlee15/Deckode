@@ -6,6 +6,7 @@ import {
   listProjects as apiListProjects,
   createProject as apiCreateProject,
   deleteProject as apiDeleteProject,
+  renameProject as apiRenameProject,
   loadDeckFromDisk,
   saveDeckToDisk,
   uploadAsset as apiUploadAsset,
@@ -14,12 +15,28 @@ import {
   listLayouts as apiListLayouts,
   loadLayout as apiLoadLayout,
 } from "@/utils/api";
+import type { RenameProjectOptions } from "./types";
 
 export class ViteApiAdapter implements FileSystemAdapter {
   readonly mode = "vite" as const;
   readonly lastSaveHash: number | null = null;
+  readonly canRenameFolder = true;
 
-  constructor(public readonly projectName: string) {}
+  private _projectName: string;
+
+  constructor(name: string) {
+    this._projectName = name;
+  }
+
+  get projectName(): string {
+    return this._projectName;
+  }
+
+  async renameProject(opts: RenameProjectOptions): Promise<{ name: string }> {
+    const result = await apiRenameProject(this._projectName, opts);
+    this._projectName = result.name;
+    return result;
+  }
 
   async loadDeck(): Promise<Deck> {
     const deck = await loadDeckFromDisk(this.projectName);

@@ -18,7 +18,6 @@ import { PresentationMode } from "@/components/presenter/PresentationMode";
 import { ExportDialog } from "./ExportDialog";
 import { useAdapter } from "@/contexts/AdapterContext";
 import { ProjectSettingsDialog } from "./ProjectSettingsDialog";
-import { loadDeckFromDisk } from "@/utils/api";
 import { AiChatPanel } from "./AiChatPanel";
 import { useGitDiff } from "@/contexts/GitDiffContext";
 import { useTikzAutoRender } from "@/hooks/useTikzAutoRender";
@@ -498,7 +497,7 @@ export function EditorLayout() {
         >
           {isReadOnly ? "Back" : "Projects"}
         </button>
-        {import.meta.env.DEV ? (
+        {!isReadOnly ? (
           <button
             onClick={() => setShowProjectSettings(true)}
             className="text-sm font-semibold text-zinc-300 hover:text-zinc-100 transition-colors"
@@ -786,29 +785,20 @@ export function EditorLayout() {
         <ProjectSettingsDialog
           projectName={useDeckStore.getState().currentProject ?? ""}
           projectTitle={deck?.meta?.title ?? ""}
+          adapter={adapter}
+          showGitPath={adapter.mode === "vite"}
           onClose={() => setShowProjectSettings(false)}
           onPathSaved={() => {
             gitDiff.refetch();
             setShowDiff(true);
           }}
           onRenamed={async ({ newName }) => {
-            // Re-load the deck from the (possibly) renamed folder and swap it
-            // into the store so the editor keeps pointing at the live project.
+            // After rename the adapter's projectName has been mutated in place.
+            // Re-load the deck so the editor picks up meta.title and the
+            // (possibly new) path.
             const store = useDeckStore.getState();
-            if (newName && newName !== store.currentProject) {
-              const reloaded = await loadDeckFromDisk(newName);
-              if (reloaded) {
-                store.openProject(newName, reloaded);
-              }
-            } else {
-              // Title-only change: refresh the deck from disk so the editor picks
-              // up the new meta.title without a save round-trip.
-              const current = store.currentProject;
-              if (current) {
-                const reloaded = await loadDeckFromDisk(current);
-                if (reloaded) store.openProject(current, reloaded);
-              }
-            }
+            const reloaded = await adapter.loadDeck();
+            store.openProject(newName, reloaded);
           }}
         />
       )}
